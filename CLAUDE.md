@@ -71,6 +71,9 @@ These rules govern every interaction in this repository.
 | Database   | MongoDB (local replica set → MongoDB Atlas) |
 | Validation | `class-validator` + `class-transformer`     |
 | Config     | `@nestjs/config` + `.env`                   |
+| Testing    | Jest + NestJS TestBed (`@nestjs/testing`)   |
+| Linting    | ESLint v10 (flat config) + Prettier         |
+| Git Hooks  | Husky + lint-staged + commitlint            |
 
 ---
 
@@ -85,14 +88,15 @@ npm run build
 npm run start:prod
 
 # Tests
-npm run test            # unit tests
-npm run test:e2e        # end-to-end tests
-npm run test:watch      # watch mode
-npm run test -- --testPathPattern=bookings   # run a single test file
+npm run test                                          # all unit tests
+npm run test:e2e                                      # end-to-end tests
+npm run test:watch                                    # watch mode
+npm run test -- --testPathPattern=bookings            # single module
 
-# Linting
-npm run lint
-npm run lint -- --fix
+# Linting & formatting (these also run automatically on git commit)
+npm run lint            # ESLint check
+npm run lint -- --fix   # ESLint auto-fix
+npx prettier --write .  # format all files
 ```
 
 ### NestJS CLI (code generation)
@@ -112,6 +116,36 @@ mongod --replSet rs0 --dbpath ./data/db --port 27017
 # In a new terminal, initiate the replica set (first time only)
 mongosh --eval "rs.initiate()"
 ```
+
+---
+
+## Tooling & Git Workflow
+
+### Commit convention — Conventional Commits (enforced by commitlint)
+
+```bash
+type(optional-scope): subject   # subject lowercase, imperative, no period
+
+# Valid types
+feat      # new feature
+fix       # bug fix
+docs      # documentation only
+refactor  # restructure without behavior change
+test      # adding or fixing tests
+chore     # maintenance, dependencies, config
+perf      # performance improvement
+```
+
+### Git hooks (Husky)
+
+| Hook         | Trigger                  | Action                                                       |
+| ------------ | ------------------------ | ------------------------------------------------------------ |
+| `pre-commit` | Before every commit      | Runs `lint-staged` (ESLint --fix + Prettier) on staged files |
+| `commit-msg` | After message is written | Runs `commitlint` — blocks non-conventional messages         |
+
+### ESLint config note
+
+The project currently uses ESLint v10 flat config (`eslint.config.mjs`). When NestJS is scaffolded (`nest new`), it generates `.eslintrc.js` with TypeScript rules. At that point: delete `eslint.config.mjs` and keep NestJS's config, adding `globals.jest` to the test file overrides.
 
 ---
 

@@ -32,6 +32,8 @@ Full curriculum with concept explanations, code guidance, and phase checkpoints:
 - **Database**: MongoDB (local → MongoDB Atlas)
 - **Validation**: `class-validator` + `class-transformer`
 - **Testing**: Jest + NestJS TestBed
+- **Linting**: ESLint v10 + Prettier
+- **Git Hooks**: Husky + lint-staged + commitlint (Conventional Commits)
 
 ---
 
@@ -105,3 +107,17 @@ From Phase 3, each module adopts a layered Clean Architecture structure:
 | `PORT`        | HTTP port                 | `3000`                                      |
 
 See `.env.example` for the full list.
+
+---
+
+## Git Workflow
+
+Commits are enforced to follow [Conventional Commits](https://www.conventionalcommits.org/):
+
+```bash
+git commit -m "feat: add customer booking endpoint"
+git commit -m "fix(bookings): resolve slot conflict check"
+git commit -m "docs: update phase 1 checkpoint"
+```
+
+The pre-commit hook auto-formats staged files with ESLint and Prettier before every commit.
