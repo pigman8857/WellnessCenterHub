@@ -63,17 +63,17 @@ These rules govern every interaction in this repository.
 
 ## Tech Stack
 
-| Layer      | Choice                                      |
-| ---------- | ------------------------------------------- |
-| Language   | TypeScript (strict mode)                    |
-| Framework  | NestJS                                      |
-| ODM        | Mongoose (`@nestjs/mongoose`)               |
-| Database   | MongoDB (local replica set → MongoDB Atlas) |
-| Validation | `class-validator` + `class-transformer`     |
-| Config     | `@nestjs/config` + `.env`                   |
-| Testing    | Jest + NestJS TestBed (`@nestjs/testing`)   |
-| Linting    | ESLint v10 (flat config) + Prettier         |
-| Git Hooks  | Husky + lint-staged + commitlint            |
+| Layer      | Choice                                                 |
+| ---------- | ------------------------------------------------------ |
+| Language   | TypeScript (strict mode)                               |
+| Framework  | NestJS                                                 |
+| ODM        | Mongoose (`@nestjs/mongoose`)                          |
+| Database   | MongoDB (local replica set → MongoDB Atlas)            |
+| Validation | `class-validator` + `class-transformer`                |
+| Config     | `@nestjs/config` + `.env`                              |
+| Testing    | Jest + NestJS TestBed (`@nestjs/testing`)              |
+| Linting    | ESLint v9 (flat config) + typescript-eslint + Prettier |
+| Git Hooks  | Husky + lint-staged + commitlint                       |
 
 ---
 
@@ -81,7 +81,8 @@ These rules govern every interaction in this repository.
 
 ```bash
 # Development
-npm run start:dev       # watch mode with hot reload
+npm run start:dev        # watch mode with hot reload
+npm run start:debug      # debug mode with hot reload
 
 # Production build
 npm run build
@@ -91,12 +92,12 @@ npm run start:prod
 npm run test                                          # all unit tests
 npm run test:e2e                                      # end-to-end tests
 npm run test:watch                                    # watch mode
+npm run test:cov                                      # with coverage report
 npm run test -- --testPathPattern=bookings            # single module
 
-# Linting & formatting (these also run automatically on git commit)
-npm run lint            # ESLint check
-npm run lint -- --fix   # ESLint auto-fix
-npx prettier --write .  # format all files
+# Linting & formatting (also run automatically on git commit via lint-staged)
+npm run lint             # ESLint check + auto-fix on src/ and test/
+npm run format           # Prettier on src/ and test/
 ```
 
 ### NestJS CLI (code generation)
@@ -143,34 +144,46 @@ perf      # performance improvement
 | `pre-commit` | Before every commit      | Runs `lint-staged` (ESLint --fix + Prettier) on staged files |
 | `commit-msg` | After message is written | Runs `commitlint` — blocks non-conventional messages         |
 
-### ESLint config note
+### ESLint config
 
-The project currently uses ESLint v10 flat config (`eslint.config.mjs`). When NestJS is scaffolded (`nest new`), it generates `.eslintrc.js` with TypeScript rules. At that point: delete `eslint.config.mjs` and keep NestJS's config, adding `globals.jest` to the test file overrides.
+Uses ESLint v9 flat config (`eslint.config.mjs`) with `typescript-eslint` (type-aware rules) and `eslint-plugin-prettier`. Both `globals.node` and `globals.jest` are already included — no extra setup needed for test files. The config intentionally sets `@typescript-eslint/no-explicit-any: off` to keep learning examples readable.
 
 ---
 
 ## Project Structure
 
+Current state — NestJS scaffold complete, modules not yet created:
+
 ```
 src/
-├── app.module.ts                  # Root module; MongooseModule.forRootAsync here
-├── main.ts                        # Bootstrap; enable ValidationPipe globally
-├── config/
-│   └── configuration.ts           # Typed config factory (reads .env)
-└── modules/
-    ├── services/                  # Wellness service catalog (Phase 1.3)
-    │   ├── schemas/service.schema.ts
-    │   ├── dto/
-    │   ├── services.controller.ts
-    │   └── services.service.ts
-    ├── customers/                 # Customer profiles + embedded languages (Phase 1.4)
-    ├── bookings/                  # Appointments; references Customer + Service (Phase 1.5)
-    │   ├── repositories/          # Repository pattern added in Phase 3.3
-    │   │   └── booking.repository.ts
-    │   └── booking-watcher.service.ts  # Change streams (Phase 3.2)
-    ├── wellness-centers/          # Geospatial locations (Phase 2.3)
-    ├── reviews/                   # Review system + aggregated ratings (Phase 2.5)
-    └── analytics/                 # Aggregation pipeline endpoints (Phase 2.2)
+├── app.module.ts                  # Root module — MongooseModule.forRootAsync goes here
+├── app.controller.ts              # Default NestJS controller (will be removed)
+├── app.service.ts                 # Default NestJS service (will be removed)
+├── app.controller.spec.ts         # Default test (will be removed)
+├── main.ts                        # Bootstrap — ValidationPipe added globally here
+└── modules/                       # Created as learning phases progress
+    ├── services/                  # Phase 1.3 — Wellness service catalog
+    ├── customers/                 # Phase 1.4 — Customer profiles
+    ├── bookings/                  # Phase 1.5 — Appointments
+    ├── wellness-centers/          # Phase 2.3 — Geospatial
+    ├── reviews/                   # Phase 2.5 — Review system
+    └── analytics/                 # Phase 2.2 — Aggregation reports
+
+test/
+└── app.e2e-spec.ts                # End-to-end test entry point
+```
+
+Target structure per module (enforced from Phase 3.3 onward):
+
+```
+modules/<name>/
+├── domain/                        # Entities, repository interfaces (pure TS)
+├── infrastructure/                # Schemas, repository implementations (Mongoose)
+├── dto/                           # Request/response shapes
+├── <name>.module.ts
+├── <name>.controller.ts           # Presentation layer
+├── <name>.service.ts              # Application layer
+└── <name>.controller.spec.ts
 ```
 
 ---
@@ -237,4 +250,4 @@ PORT=3000
 
 > Update this line as you progress through the curriculum.
 
-**Current**: Phase 1 — Project not yet initialized. Run `nest new wellness-center-hub` to start.
+**Current**: Phase 1.2 — NestJS scaffold complete. Next: connect MongoDB and generate the first modules (`services`, `customers`, `bookings`).

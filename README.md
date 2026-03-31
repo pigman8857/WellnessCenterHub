@@ -32,7 +32,7 @@ Full curriculum with concept explanations, code guidance, and phase checkpoints:
 - **Database**: MongoDB (local → MongoDB Atlas)
 - **Validation**: `class-validator` + `class-transformer`
 - **Testing**: Jest + NestJS TestBed
-- **Linting**: ESLint v10 + Prettier
+- **Linting**: ESLint v9 + typescript-eslint + Prettier
 - **Git Hooks**: Husky + lint-staged + commitlint (Conventional Commits)
 
 ---
@@ -55,25 +55,33 @@ npm install
 
 ```bash
 cp .env.example .env
-# Edit .env and set your MONGODB_URI
+# Edit .env — set MONGODB_URI and PORT
 ```
 
 ### Run
 
 ```bash
-# Development (watch mode)
-npm run start:dev
-
-# Production
-npm run build && npm run start:prod
+npm run start:dev          # development with hot reload
+npm run start:debug        # debug mode
+npm run build              # compile to dist/
+npm run start:prod         # run compiled output
 ```
 
 ### Test
 
 ```bash
-npm run test                                          # all unit tests
-npm run test -- --testPathPattern=services            # single module
-npm run test:e2e                                      # end-to-end
+npm run test                                     # all unit tests
+npm run test:watch                               # watch mode
+npm run test:cov                                 # with coverage
+npm run test -- --testPathPattern=services       # single module
+npm run test:e2e                                 # end-to-end
+```
+
+### Lint & Format
+
+```bash
+npm run lint       # ESLint + auto-fix (src/ and test/)
+npm run format     # Prettier (src/ and test/)
 ```
 
 ---
@@ -82,19 +90,21 @@ npm run test:e2e                                      # end-to-end
 
 ```
 src/
-├── app.module.ts
-├── main.ts
-├── config/
-└── modules/
-    ├── services/          # Wellness service catalog
-    ├── customers/         # Customer profiles
-    ├── bookings/          # Appointment bookings
-    ├── wellness-centers/  # Geospatial center data
-    ├── reviews/           # Customer reviews
-    └── analytics/         # Aggregation pipeline reports
+├── app.module.ts          # Root module
+├── main.ts                # Bootstrap
+└── modules/               # Feature modules added per learning phase
+    ├── services/          # Phase 1.3 — Wellness service catalog
+    ├── customers/         # Phase 1.4 — Customer profiles
+    ├── bookings/          # Phase 1.5 — Appointment bookings
+    ├── wellness-centers/  # Phase 2.3 — Geospatial center data
+    ├── reviews/           # Phase 2.5 — Customer reviews
+    └── analytics/         # Phase 2.2 — Aggregation pipeline reports
+
+test/
+└── app.e2e-spec.ts        # End-to-end tests
 ```
 
-From Phase 3, each module adopts a layered Clean Architecture structure:
+From Phase 3.3, each module adopts a layered Clean Architecture structure:
 `Presentation → Application → Domain ← Infrastructure`
 
 ---
