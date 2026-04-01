@@ -16,11 +16,35 @@ The wellness center domain (Thai massage, herbal treatments, retreat bookings, t
 
 | Phase                | Topic                                                          | Status         |
 | -------------------- | -------------------------------------------------------------- | -------------- |
-| **1 — Basic**        | CRUD, Schema Design, Embed vs. Reference                       | 🔲 Not started |
+| **1 — Basic**        | CRUD, Schema Design, Embed vs. Reference                       | 🔄 In progress |
 | **2 — Intermediate** | Indexes, Aggregation Pipeline, Geospatial, Validation, Reviews | 🔲 Not started |
 | **3 — Advanced**     | Transactions, Change Streams, Clean Architecture, Atlas DevOps | 🔲 Not started |
 
 Full curriculum with concept explanations, code guidance, and phase checkpoints: **[LEARNING.md](LEARNING.md)**
+
+---
+
+## Business Domain
+
+A premium wellness center in Thailand offering massage, herbal treatments, and retreat packages — primarily serving both local and international tourists.
+
+### Core Entities
+
+| Entity              | Description                                                                                                                            | Depends On                         |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **WellnessService** | The service catalog — what the center offers (e.g. Thai Massage 60 min, Herbal Steam Bath). Has a name, category, duration, and price. | Nothing                            |
+| **Customer**        | A guest profile with contact info, preferred languages, and customer type (local / international).                                     | Nothing                            |
+| **Booking**         | An appointment — links a customer to a service at a specific date and time. Tracks status from `pending` through `completed`.          | Customer, WellnessService          |
+| **WellnessCenter**  | A physical center location with a GeoJSON coordinate. Used for location-based search.                                                  | Nothing                            |
+| **Review**          | A customer's rating and comment for a completed booking. One review per booking.                                                       | Customer, WellnessService, Booking |
+
+### Collections introduced in Phase 3
+
+| Entity        | Description                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------- |
+| **Room**      | A bookable VIP room or treatment suite. Reserved atomically as part of a retreat booking transaction. |
+| **Inventory** | Consumable supplies (oils, herbs). Quantity is decremented atomically alongside a room reservation.   |
+| **Invoice**   | Financial record created together with a booking in a single ACID transaction.                        |
 
 ---
 
@@ -42,8 +66,18 @@ Full curriculum with concept explanations, code guidance, and phase checkpoints:
 ### Prerequisites
 
 - Node.js 20+
-- MongoDB installed locally (or a free [MongoDB Atlas](https://www.mongodb.com/atlas) account)
+- Docker (for local MongoDB) or a free [MongoDB Atlas](https://www.mongodb.com/atlas) account
 - NestJS CLI: `npm i -g @nestjs/cli`
+
+### Start MongoDB (Docker)
+
+```bash
+docker compose up -d        # start in background
+docker compose down         # stop and remove container
+docker compose down -v      # stop and delete data volume (full reset)
+```
+
+> **Production note**: Change `restart: no` to `restart: unless-stopped` in `docker-compose.yml` so the database survives crashes and server reboots.
 
 ### Install
 

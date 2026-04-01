@@ -1,0 +1,16 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: wellness_center_mongo
+    # Local dev: "no" — start/stop manually with docker compose up/down
+    # Production: change to "unless-stopped" to survive crashes and reboots
+    restart: no
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: wellness_center
+
+volumes:
+  mongodb_data:

@@ -108,10 +108,20 @@ nest g controller modules/<name> --no-spec
 nest g service modules/<name> --no-spec
 ```
 
-### Local MongoDB replica set (required for Phase 3 transactions + change streams)
+### Local MongoDB (Docker Compose)
 
 ```bash
-# Start a single-node replica set for local development
+docker compose up -d        # start MongoDB in background
+docker compose down         # stop and remove container
+docker compose down -v      # stop and delete data volume (full reset)
+```
+
+### Local MongoDB replica set (required for Phase 3 transactions + change streams)
+
+A plain `docker compose up` is sufficient for Phases 1–2. Phase 3 requires a replica set. At that point, update `docker-compose.yml` to run MongoDB with `--replSet rs0`, or switch to MongoDB Atlas (free M0 cluster supports replica sets out of the box).
+
+```bash
+# If running MongoDB directly (without Docker)
 mongod --replSet rs0 --dbpath ./data/db --port 27017
 
 # In a new terminal, initiate the replica set (first time only)
@@ -250,4 +260,4 @@ PORT=3000
 
 > Update this line as you progress through the curriculum.
 
-**Current**: Phase 1.2 — NestJS scaffold complete. Next: connect MongoDB and generate the first modules (`services`, `customers`, `bookings`).
+**Current**: Phase 1.3 — MongoDB connected, modules scaffolded. Next: build the `WellnessService` schema and CRUD endpoints.
