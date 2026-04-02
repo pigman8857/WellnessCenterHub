@@ -260,4 +260,4 @@ PORT=3000
 
 > Update this line as you progress through the curriculum.
 
-**Current**: Phase 1.3 — MongoDB connected, modules scaffolded. Next: build the `WellnessService` schema and CRUD endpoints.
+**Current**: Phase 1.4 — Service catalog complete. Next: build the `Customer` schema with embedded documents and array queries.

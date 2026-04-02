@@ -250,12 +250,14 @@ Common comparison operators:
 - `$lt / $lte` — less than / less than or equal
 - `$in` — value is in an array: `{ category: { $in: ['massage', 'herbal'] } }`
 
-### Checkpoint 1.3
+### Checkpoint 1.3 ✅ Complete
 
-- [ ] You can POST a new service and see it appear in MongoDB Compass.
-- [ ] You can GET all services filtered by `category`.
-- [ ] You can PATCH a service's price using `findByIdAndUpdate`.
-- [ ] You understand what `{ new: true }` does and why you need it.
+- [x] You can POST a new service and see it appear in MongoDB Compass.
+- [x] You can GET all services filtered by `category`.
+- [x] You can PATCH a service's price using `findByIdAndUpdate`.
+- [x] You understand what `{ new: true }` does and why you need it.
+- [x] `ValidationPipe` with `whitelist: true` rejects invalid and missing fields with `400`.
+- [x] `HydratedDocument<T>` used instead of the legacy `WellnessService & Document` intersection.
 
 ---
 

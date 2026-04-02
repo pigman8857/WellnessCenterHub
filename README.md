@@ -20,6 +20,16 @@ The wellness center domain (Thai massage, herbal treatments, retreat bookings, t
 | **2 — Intermediate** | Indexes, Aggregation Pipeline, Geospatial, Validation, Reviews | 🔲 Not started |
 | **3 — Advanced**     | Transactions, Change Streams, Clean Architecture, Atlas DevOps | 🔲 Not started |
 
+### Phase 1 Progress
+
+| Sub-phase | Topic                        | Status      |
+| --------- | ---------------------------- | ----------- |
+| 1.1       | MongoDB mindset              | ✅ Complete |
+| 1.2       | NestJS scaffold + MongoDB    | ✅ Complete |
+| 1.3       | Service catalog (CRUD)       | ✅ Complete |
+| 1.4       | Customer profiles (embedded) | 🔲 Next     |
+| 1.5       | Bookings (references)        | 🔲 Pending  |
+
 Full curriculum with concept explanations, code guidance, and phase checkpoints: **[LEARNING.md](LEARNING.md)**
 
 ---
