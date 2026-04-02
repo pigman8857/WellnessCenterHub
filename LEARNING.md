@@ -261,7 +261,9 @@ Common comparison operators:
 
 ---
 
-## Phase 1.4 — Customer Profiles: Embedding vs. Referencing
+## Phase 1.4 — Customer Profiles: Embedding
+
+> **Scope note:** This phase covers the _embed_ side of the embed-vs-reference decision. You will learn the full decision rule here, but only practice embedding. Referencing (ObjectId links between collections) is practiced in Phase 1.5 when the Booking schema links to both Customer and WellnessService.
 
 ### Concept: Embed or Reference?
 
@@ -336,9 +338,15 @@ model.find({}, { firstName: 1, lastName: 1, email: 1, _id: 0 });
 
 ### Checkpoint 1.4
 
-- [ ] You can explain the embed-vs-reference rule in your own words.
-- [ ] You can query customers by a value inside `preferredLanguages`.
-- [ ] You understand what a projection does.
+- [x] `Customer` schema with embedded `Address` sub-document and `EmergencyContact[]` array of objects.
+- [x] Embedded sub-document schemas use `@Schema({ _id: false })` — no auto-id on nested objects.
+- [x] `create-customer.dto.ts` — `@ValidateNested()` + `@Type()` for nested objects, `@IsString({ each: true })` for arrays, `@IsDateString()` for dates.
+- [x] `update-customer.dto.ts` — `PartialType(CreateCustomerDto)`.
+- [x] Service implements CRUD + three array query methods using exact field match, `$in`, and `$all`.
+- [ ] Controller wired up with all endpoints (specific routes before `:id`).
+- [ ] You can POST a customer with an embedded address and see it in MongoDB Compass.
+- [ ] You can GET customers filtered by a value inside `preferredLanguages`.
+- [ ] You understand what a projection does and have called `findAllWithOnlyNameAndEmail`.
 
 ---
 

@@ -6,7 +6,9 @@ import { CreateServiceDto } from './dto/create-service.dto';
 import { UpdateServiceDto } from './dto/update-service.dto';
 @Injectable()
 export class ServicesService {
-  constructor(@InjectModel(WellnessService.name) private serviceModel: Model<ServiceDocument>) {}
+  constructor(
+    @InjectModel(WellnessService.name) private readonly serviceModel: Model<ServiceDocument>,
+  ) {}
 
   async findAll(): Promise<ServiceDocument[]> {
     return await this.serviceModel.find().exec();

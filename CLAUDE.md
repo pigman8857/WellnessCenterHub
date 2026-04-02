@@ -260,4 +260,4 @@ PORT=3000
 
 > Update this line as you progress through the curriculum.
 
-**Current**: Phase 1.4 — Service catalog complete. Next: build the `Customer` schema with embedded documents and array queries.
+**Current**: Phase 1.4 — Customer profiles in progress. Schema (`Customer`, `Address`, `EmergencyContact`), DTOs, and service complete. Controller remaining, then HTTP tests to verify.

@@ -22,13 +22,13 @@ The wellness center domain (Thai massage, herbal treatments, retreat bookings, t
 
 ### Phase 1 Progress
 
-| Sub-phase | Topic                        | Status      |
-| --------- | ---------------------------- | ----------- |
-| 1.1       | MongoDB mindset              | ✅ Complete |
-| 1.2       | NestJS scaffold + MongoDB    | ✅ Complete |
-| 1.3       | Service catalog (CRUD)       | ✅ Complete |
-| 1.4       | Customer profiles (embedded) | 🔲 Next     |
-| 1.5       | Bookings (references)        | 🔲 Pending  |
+| Sub-phase | Topic                        | Status         |
+| --------- | ---------------------------- | -------------- |
+| 1.1       | MongoDB mindset              | ✅ Complete    |
+| 1.2       | NestJS scaffold + MongoDB    | ✅ Complete    |
+| 1.3       | Service catalog (CRUD)       | ✅ Complete    |
+| 1.4       | Customer profiles (embedded) | 🔄 In progress |
+| 1.5       | Bookings (references)        | 🔲 Pending     |
 
 Full curriculum with concept explanations, code guidance, and phase checkpoints: **[LEARNING.md](LEARNING.md)**
 
