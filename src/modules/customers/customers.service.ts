@@ -4,6 +4,7 @@ import { CustomerDocument, Customer } from './schemas/customer.schema';
 import { Model } from 'mongoose';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { CustomerSummaryDto } from './dto/customer-summary.dto';
 
 @Injectable()
 export class CustomersService {
@@ -15,10 +16,17 @@ export class CustomersService {
     return await this.customerModel.find().exec();
   }
 
-  //Projection it only query with expecting fields, not all fields.
-  async findAllWithOnlyNameAndEmail(): Promise<CustomerDocument[]> {
+  // Projection: tells MongoDB to return only the specified fields, not the whole document.
+  // { firstName: 1, lastName: 1, email: 1 } → include these fields
+  // { _id: 0 }                              → explicitly exclude _id (included by default otherwise)
+  // This reduces the data transferred from MongoDB to the application.
+  async findAllWithOnlyNameAndEmail(): Promise<CustomerSummaryDto[]> {
     return await this.customerModel
       .find({}, { firstName: 1, lastName: 1, email: 1, _id: 0 })
+      // .lean() strips Mongoose Document internals (methods, __v, etc.) and returns a plain JS object.
+      // The generic <CustomerSummaryDto[]> tells TypeScript: "treat the result as this specific shape."
+      // Without lean(), Mongoose returns a full Document instance even though MongoDB only sent 3 fields.
+      .lean<CustomerSummaryDto[]>()
       .exec();
   }
 
@@ -28,7 +36,9 @@ export class CustomersService {
   }
 
   //Querying an Embedded Array
-  async findAlByWithinPreferredLanguages(preferredLanguage: string[]): Promise<CustomerDocument[]> {
+  async findAllByWithinPreferredLanguages(
+    preferredLanguage: string[],
+  ): Promise<CustomerDocument[]> {
     return await this.customerModel.find({ preferredLanguages: { $in: preferredLanguage } }).exec();
   }
 

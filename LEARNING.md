@@ -336,17 +336,18 @@ model.find({}, { firstName: 1, lastName: 1, email: 1, _id: 0 });
 
 `1` = include, `0` = exclude. You cannot mix includes and excludes (except for `_id`).
 
-### Checkpoint 1.4
+### Checkpoint 1.4 ✅ Complete
 
 - [x] `Customer` schema with embedded `Address` sub-document and `EmergencyContact[]` array of objects.
 - [x] Embedded sub-document schemas use `@Schema({ _id: false })` — no auto-id on nested objects.
 - [x] `create-customer.dto.ts` — `@ValidateNested()` + `@Type()` for nested objects, `@IsString({ each: true })` for arrays, `@IsDateString()` for dates.
 - [x] `update-customer.dto.ts` — `PartialType(CreateCustomerDto)`.
 - [x] Service implements CRUD + three array query methods using exact field match, `$in`, and `$all`.
-- [ ] Controller wired up with all endpoints (specific routes before `:id`).
-- [ ] You can POST a customer with an embedded address and see it in MongoDB Compass.
-- [ ] You can GET customers filtered by a value inside `preferredLanguages`.
-- [ ] You understand what a projection does and have called `findAllWithOnlyNameAndEmail`.
+- [x] Controller wired up with all endpoints (specific routes before `:id`).
+- [x] `GET /customers/projection` uses MongoDB projection + `.lean()` + `ClassSerializerInterceptor` + `@Expose()` to return a shaped response DTO (`CustomerSummaryDto`).
+- [x] You can POST a customer with an embedded address and see it in MongoDB Compass.
+- [x] You can GET customers filtered by a value inside `preferredLanguages`.
+- [x] You understand what a projection does and have called `findAllWithOnlyNameAndEmail`.
 
 ---
 

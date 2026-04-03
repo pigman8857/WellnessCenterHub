@@ -260,4 +260,6 @@ PORT=3000
 
 > Update this line as you progress through the curriculum.
 
-**Current**: Phase 1.4 — Customer profiles in progress. Schema (`Customer`, `Address`, `EmergencyContact`), DTOs, and service complete. Controller remaining, then HTTP tests to verify.
+**Current**: Phase 1.3 revisit — Adding comparison operator methods to `ServicesService` (`$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in` combinations).
+
+**Completed**: Phase 1.4 — Customer profiles ✅ Full CRUD + embedded array queries + projection with `CustomerSummaryDto` / `ClassSerializerInterceptor` verified.

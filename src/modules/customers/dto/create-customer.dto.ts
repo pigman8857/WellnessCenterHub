@@ -61,7 +61,9 @@ export class CreateCustomerDto {
   address: CreateAddressDto;
 
   @IsOptional()
-  @IsEnum(CustomerType, { message: 'Category must be a valid enum value (local,international)' })
+  @IsEnum(CustomerType, {
+    message: 'Customer Type must be a valid enum value (local,international)',
+  })
   customerType: CustomerType;
 
   @IsOptional()

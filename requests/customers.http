@@ -1,0 +1,177 @@
+@baseUrl = http://localhost:3000
+# After creating a customer, paste the returned _id here
+@customerId = 69cf76967daee5c27fa74a32
+
+# ─── CREATE ────────────────────────────────────────────────────────────────────
+
+### Create customer — full payload (local, Thai+English, with address and emergency contact)
+POST {{baseUrl}}/customers
+Content-Type: application/json
+
+{
+  "firstName": "Somchai",
+  "lastName": "Jaidee",
+  "email": "somchai@example.com",
+  "phone": "+66812345678",
+  "customerType": "local",
+  "preferredLanguages": ["th", "en"],
+  "dateOfBirth": "1990-05-15",
+  "address": {
+    "street": "123 Sukhumvit Road",
+    "city": "Bangkok",
+    "postalCode": "10110",
+    "country": "Thailand"
+  },
+  "emergencyContacts": [
+    {
+      "name": "Malee Jaidee",
+      "phone": "+66898765432",
+      "relationship": "spouse"
+    }
+  ]
+}
+
+### Create customer — international, English only, minimal fields
+POST {{baseUrl}}/customers
+Content-Type: application/json
+
+{
+  "firstName": "Alice",
+  "lastName": "Walker",
+  "email": "alice@example.com",
+  "customerType": "international",
+  "preferredLanguages": ["en"]
+}
+
+### Create customer — local, Thai only, no optional fields
+POST {{baseUrl}}/customers
+Content-Type: application/json
+
+{
+  "firstName": "Napat",
+  "lastName": "Srisuk",
+  "email": "napat@example.com",
+  "customerType": "local",
+  "preferredLanguages": ["th"]
+}
+
+# ─── READ ──────────────────────────────────────────────────────────────────────
+
+### Get all customers — full documents
+GET {{baseUrl}}/customers
+
+### Get all customers — projection (firstName, lastName, email only — no _id)
+# Expected: array with only 3 fields per object, _id must be absent
+GET {{baseUrl}}/customers/projection
+
+### Get one customer by id
+# Set @customerId at the top first
+GET {{baseUrl}}/customers/{{customerId}}
+
+# ─── ARRAY QUERIES ─────────────────────────────────────────────────────────────
+# MongoDB concept: querying array fields
+# These three routes show three different ways to match against an array field.
+
+### language — exact match: customers who have exactly "th" in preferredLanguages
+# MongoDB: { preferredLanguages: "th" } — element equality on an array field
+# Expected: Somchai (th,en) and Napat (th) — both contain "th"
+GET {{baseUrl}}/customers/language?lang=th
+
+### language/any — $in: customers who speak Thai OR English
+# MongoDB: { preferredLanguages: { $in: ["th","en"] } }
+# Expected: all 3 customers (Somchai has both, Alice has en, Napat has th)
+GET {{baseUrl}}/customers/language/any?langs=th,en
+
+### language/any — $in: customers who speak English only
+# Expected: Somchai (th,en) and Alice (en)
+GET {{baseUrl}}/customers/language/any?langs=en
+
+### language/all — $all: customers who speak BOTH Thai AND English
+# MongoDB: { preferredLanguages: { $all: ["th","en"] } }
+# Expected: only Somchai (the only one with both th and en)
+GET {{baseUrl}}/customers/language/all?langs=th,en
+
+### language/all — $all: customers who speak Thai only (single value)
+# Expected: Somchai and Napat (both have "th")
+GET {{baseUrl}}/customers/language/all?langs=th
+
+# ─── UPDATE ────────────────────────────────────────────────────────────────────
+
+### Update customer — partial (only phone changes, all other fields untouched)
+# PartialType on UpdateCustomerDto makes every field optional
+PATCH {{baseUrl}}/customers/{{customerId}}
+Content-Type: application/json
+
+{
+  "phone": "+66899999999"
+}
+
+### Update customer — add a preferred language
+PATCH {{baseUrl}}/customers/{{customerId}}
+Content-Type: application/json
+
+{
+  "preferredLanguages": ["th", "en", "zh"]
+}
+
+### Update customer — update nested address field
+PATCH {{baseUrl}}/customers/{{customerId}}
+Content-Type: application/json
+
+{
+  "address": {
+    "street": "456 Sathorn Road",
+    "city": "Bangkok",
+    "country": "Thailand"
+  }
+}
+
+# ─── DELETE ────────────────────────────────────────────────────────────────────
+
+### Delete customer by id
+DELETE {{baseUrl}}/customers/{{customerId}}
+
+# ─── ERROR CASES ───────────────────────────────────────────────────────────────
+
+### 404 — non-existent ObjectId
+GET {{baseUrl}}/customers/000000000000000000000000
+
+### 400 — missing required fields
+POST {{baseUrl}}/customers
+Content-Type: application/json
+
+{
+  "firstName": "NoLastName"
+}
+
+### 400 — invalid email
+POST {{baseUrl}}/customers
+Content-Type: application/json
+
+{
+  "firstName": "Bad",
+  "lastName": "Email",
+  "email": "not-an-email"
+}
+
+### 400 — invalid customerType enum
+POST {{baseUrl}}/customers
+Content-Type: application/json
+
+{
+  "firstName": "Bad",
+  "lastName": "Enum",
+  "email": "bad@example.com",
+  "customerType": "vip"
+}
+
+### 400 — invalid phone number format
+POST {{baseUrl}}/customers
+Content-Type: application/json
+
+{
+  "firstName": "Bad",
+  "lastName": "Phone",
+  "email": "badphone@example.com",
+  "phone": "12345"
+}
