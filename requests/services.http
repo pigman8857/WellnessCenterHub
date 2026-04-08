@@ -6,10 +6,10 @@ POST {{baseUrl}}/services
 Content-Type: application/json
 
 {
-  "name": "Thai Massage",
-  "durationMinutes": 60,
-  "price": 800,
-  "category": "massage"
+  "name": "Thai Beauty",
+  "durationMinutes": 40,
+  "price": 1300,
+  "category": "beauty"
 }
 
 ### Create another service (different category)
@@ -70,3 +70,42 @@ Content-Type: application/json
   "price": 200,
   "category": "yoga"
 }
+
+### Get inactive services
+GET {{baseUrl}}/services/inactive
+
+### Get services with no isActive field
+GET {{baseUrl}}/services/no-active-field
+
+### Filter by single category
+GET {{baseUrl}}/services/filter/category?category=massage
+
+### Filter by single category — 400 invalid enum
+GET {{baseUrl}}/services/filter/category?category=yoga
+
+### Filter by multiple categories
+GET {{baseUrl}}/services/filter/categories?categories=massage,meditation
+
+### Filter by multiple categories — 400 one invalid
+GET {{baseUrl}}/services/filter/categories?categories=massage,yoga
+
+### Filter by multiple categories — 400 trailing comma
+GET {{baseUrl}}/services/filter/categories?categories=massage,
+
+### Filter by multiple categories — 400 missing param
+GET {{baseUrl}}/services/filter/categories
+
+### Exclude a category
+GET {{baseUrl}}/services/filter/category/exclude?category=retreat
+
+### Exclude a category — 400 invalid enum
+GET {{baseUrl}}/services/filter/category/exclude?category=yoga
+
+### Filter by minimum price
+GET {{baseUrl}}/services/filter/price/min?min=500
+
+### Filter by price range
+GET {{baseUrl}}/services/filter/price/range?min=300&max=1300
+
+### Filter by price range — 400 non-numeric
+GET {{baseUrl}}/services/filter/price/range?min=abc&max=900

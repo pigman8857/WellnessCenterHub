@@ -258,6 +258,10 @@ Common comparison operators:
 - [x] You understand what `{ new: true }` does and why you need it.
 - [x] `ValidationPipe` with `whitelist: true` rejects invalid and missing fields with `400`.
 - [x] `HydratedDocument<T>` used instead of the legacy `WellnessService & Document` intersection.
+- [x] Comparison operator methods added to `ServicesService`: `$gt`, `$gte`, `$lte`, `$ne`, `$exists`, `$in`.
+- [x] Custom `ParseCategoryArrayPipe` (`PipeTransform<string, ServiceCategory[]>`) — splits, trims, filters empty strings, validates enum membership, throws `BadRequestException` for invalid or missing input.
+- [x] `ParseEnumPipe(ServiceCategory)` applied to single-category filter and exclude endpoints for consistent validation.
+- [x] `ParseFloatPipe` applied to price query params — query strings are always `string`; a pipe is required to coerce to `number`.
 
 ---
 

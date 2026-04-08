@@ -260,6 +260,9 @@ PORT=3000
 
 > Update this line as you progress through the curriculum.
 
-**Current**: Phase 1.3 revisit — Adding comparison operator methods to `ServicesService` (`$gt`, `$gte`, `$lt`, `$lte`, `$ne`, `$in` combinations).
+**Current**: Phase 1.5 — Bookings (ObjectId references, `.populate()`, pagination).
 
-**Completed**: Phase 1.4 — Customer profiles ✅ Full CRUD + embedded array queries + projection with `CustomerSummaryDto` / `ClassSerializerInterceptor` verified.
+**Completed**:
+
+- Phase 1.3 ✅ Full CRUD + comparison operators + `ParseCategoryArrayPipe` + `ParseEnumPipe` + `ParseFloatPipe` on all filter endpoints.
+- Phase 1.4 ✅ Customer profiles — embedded `Address` + `EmergencyContact[]`, array queries (`$in`, `$all`), projection with `CustomerSummaryDto` / `ClassSerializerInterceptor`.
