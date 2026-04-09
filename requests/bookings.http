@@ -1,0 +1,161 @@
+@baseUrl = http://localhost:3000
+# After creating a customer, paste the returned _id here
+@customerId = 69cf770b7daee5c27fa74a36
+# After creating a service, paste the returned _id here
+@serviceId = 69ce0ca5fd13bbf757df72c5
+# After creating a booking, paste the returned _id here
+@bookingId = 69d7c3b4028c340f02f48e7b
+
+# ─── CREATE ────────────────────────────────────────────────────────────────────
+
+### Create booking — full payload
+# MongoDB concept: ObjectId references — customer and service stored as ObjectIds
+# Expected: 201 with status: "pending" (schema default)
+POST {{baseUrl}}/bookings
+Content-Type: application/json
+
+{
+  "customerId": "{{customerId}}",
+  "serviceId": "{{serviceId}}",
+  "appointmentDate": "2026-05-01T00:00:00.000Z",
+  "startTime": "10:00",
+  "specialRequests": "Please use unscented oils",
+  "totalPrice": 1500
+}
+
+### Create booking — minimal payload (no optional fields)
+POST {{baseUrl}}/bookings
+Content-Type: application/json
+
+{
+  "customerId": "{{customerId}}",
+  "serviceId": "{{serviceId}}",
+  "appointmentDate": "2026-05-02T00:00:00.000Z",
+  "startTime": "14:00"
+}
+
+### Create booking — CONFLICT test (same service + date + startTime as first booking)
+# MongoDB concept: $nin operator — cancelled bookings excluded from conflict check
+# Expected: 409 ConflictException "This time slot is already booked"
+POST {{baseUrl}}/bookings
+Content-Type: application/json
+
+{
+  "customerId": "{{customerId}}",
+  "serviceId": "{{serviceId}}",
+  "appointmentDate": "2026-05-01T00:00:00.000Z",
+  "startTime": "10:00"
+}
+
+# ─── READ ──────────────────────────────────────────────────────────────────────
+
+### Get all bookings — page 1, 10 per page
+# MongoDB concept: .sort() + .skip() + .limit() + .populate()
+# Expected: array of bookings with customer and service fields populated (not raw ObjectIds)
+GET {{baseUrl}}/bookings?page=1&limit=10
+
+### Get all bookings — page 2
+GET {{baseUrl}}/bookings?page=2&limit=10
+
+### Get all bookings — small page size (limit=2) to verify pagination
+GET {{baseUrl}}/bookings?page=1&limit=2
+
+### Get one booking by id
+# MongoDB concept: .populate() replaces stored ObjectIds with full sub-documents
+# Expected: booking with customer: { firstName, lastName, email } and service: { name, price, durationMinutes }
+GET {{baseUrl}}/bookings/{{bookingId}}
+
+# ─── UPDATE STATUS ─────────────────────────────────────────────────────────────
+
+### Update status → confirmed
+# Expected: booking document with status: "confirmed"
+PATCH {{baseUrl}}/bookings/{{bookingId}}/status
+Content-Type: application/json
+
+{
+  "status": "confirmed"
+}
+
+### Update status → in-progress
+PATCH {{baseUrl}}/bookings/{{bookingId}}/status
+Content-Type: application/json
+
+{
+  "status": "in-progress"
+}
+
+### Update status → completed
+PATCH {{baseUrl}}/bookings/{{bookingId}}/status
+Content-Type: application/json
+
+{
+  "status": "completed"
+}
+
+### Update status → cancelled
+# After this, the same time slot should become available again
+PATCH {{baseUrl}}/bookings/{{bookingId}}/status
+Content-Type: application/json
+
+{
+  "status": "cancelled"
+}
+
+### Re-book after cancel — same slot should now be free
+# MongoDB concept: $nin excludes cancelled bookings from conflict check
+# Expected: 201 (slot is now available)
+POST {{baseUrl}}/bookings
+Content-Type: application/json
+
+{
+  "customerId": "{{customerId}}",
+  "serviceId": "{{serviceId}}",
+  "appointmentDate": "2026-05-01T00:00:00.000Z",
+  "startTime": "10:00"
+}
+
+# ─── DELETE ────────────────────────────────────────────────────────────────────
+
+### Delete booking by id
+# Expected: 200 with no body
+DELETE {{baseUrl}}/bookings/{{bookingId}}
+
+# ─── ERROR CASES ───────────────────────────────────────────────────────────────
+
+### 400 — missing required fields
+POST {{baseUrl}}/bookings
+Content-Type: application/json
+
+{
+  "customerId": "{{customerId}}"
+}
+
+### 400 — invalid ObjectId format for customerId
+# @IsMongoId() rejects strings that are not valid 24-char hex ObjectIds
+POST {{baseUrl}}/bookings
+Content-Type: application/json
+
+{
+  "customerId": "not-a-valid-id",
+  "serviceId": "{{serviceId}}",
+  "appointmentDate": "2026-05-01T00:00:00.000Z",
+  "startTime": "10:00"
+}
+
+### 400 — invalid status enum
+PATCH {{baseUrl}}/bookings/{{bookingId}}/status
+Content-Type: application/json
+
+{
+  "status": "invalid-status"
+}
+
+### 400 — page or limit not a number
+# ParseIntPipe rejects non-integer query params
+GET {{baseUrl}}/bookings?page=abc&limit=10
+
+### 404 — non-existent booking id
+GET {{baseUrl}}/bookings/000000000000000000000000
+
+### 404 — delete non-existent booking
+DELETE {{baseUrl}}/bookings/000000000000000000000000

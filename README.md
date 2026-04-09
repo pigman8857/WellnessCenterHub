@@ -28,7 +28,7 @@ The wellness center domain (Thai massage, herbal treatments, retreat bookings, t
 | 1.2       | NestJS scaffold + MongoDB    | ✅ Complete |
 | 1.3       | Service catalog (CRUD)       | ✅ Complete |
 | 1.4       | Customer profiles (embedded) | ✅ Complete |
-| 1.5       | Bookings (references)        | 🔲 Pending  |
+| 1.5       | Bookings (references)        | ✅ Complete |
 
 Full curriculum with concept explanations, code guidance, and phase checkpoints: **[LEARNING.md](LEARNING.md)**
 
@@ -40,13 +40,33 @@ A premium wellness center in Thailand offering massage, herbal treatments, and r
 
 ### Core Entities
 
-| Entity              | Description                                                                                                                            | Depends On                         |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| **WellnessService** | The service catalog — what the center offers (e.g. Thai Massage 60 min, Herbal Steam Bath). Has a name, category, duration, and price. | Nothing                            |
-| **Customer**        | A guest profile with contact info, preferred languages, and customer type (local / international).                                     | Nothing                            |
-| **Booking**         | An appointment — links a customer to a service at a specific date and time. Tracks status from `pending` through `completed`.          | Customer, WellnessService          |
-| **WellnessCenter**  | A physical center location with a GeoJSON coordinate. Used for location-based search.                                                  | Nothing                            |
-| **Review**          | A customer's rating and comment for a completed booking. One review per booking.                                                       | Customer, WellnessService, Booking |
+| Entity              | Description                                                                                                                                                                                                             | Depends On                         |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| **WellnessService** | The service catalog — what the center offers (e.g. Thai Massage 60 min, Herbal Steam Bath). Has a name, category, duration, and price.                                                                                  | Nothing                            |
+| **Customer**        | A guest profile with contact info, preferred languages, and customer type (local / international).                                                                                                                      | Nothing                            |
+| **Booking**         | An appointment — links a customer to a service at a specific date and time. Tracks status from `pending` through `completed`. A slot conflict check prevents double-booking the same service at the same date and time. | Customer, WellnessService          |
+| **WellnessCenter**  | A physical center location with a GeoJSON coordinate. Used for location-based search.                                                                                                                                   | Nothing                            |
+| **Review**          | A customer's rating and comment for a completed booking. One review per booking.                                                                                                                                        | Customer, WellnessService, Booking |
+
+### Booking — Slot Conflict Logic
+
+A conflict exists when the **same service** is already booked at the **same date and start time**. Before saving a new booking, the service checks for an existing booking matching all three fields:
+
+```
+service + appointmentDate + startTime = unique slot
+```
+
+Only bookings with status `cancelled` are excluded from the check — a cancelled booking has freed its slot and should not block new reservations. All other statuses (`pending`, `confirmed`, `in-progress`, `completed`) are considered active and hold the slot.
+
+| Status        | Holds the slot?                                   |
+| ------------- | ------------------------------------------------- |
+| `pending`     | Yes — awaiting confirmation, but slot is reserved |
+| `confirmed`   | Yes                                               |
+| `in-progress` | Yes                                               |
+| `completed`   | Yes — historical record                           |
+| `cancelled`   | **No** — slot is free                             |
+
+> **Phase 1.5 scope**: This model assumes one booking per service per time slot. Real-world capacity (therapist count, room availability) is introduced in Phase 3 via the `Room` and `Inventory` collections.
 
 ### Collections introduced in Phase 3
 

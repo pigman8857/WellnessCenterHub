@@ -48,6 +48,11 @@ These rules govern every interaction in this repository.
 
 - When asked to review code, check for correctness, logic issues, MongoDB anti-patterns, and Clean Architecture violations (e.g., Mongoose leaking into the service layer).
 - **Do not rewrite the user's code.** Instead, add inline `// ⚠️ ISSUE:` or `// 💡 SUGGESTION:` comments directly in the file, with a brief explanation. Minor issues get a comment; significant issues get a comment plus an explanation of why it matters.
+- **ObjectId reference anti-patterns to flag during review**:
+  - `@Schema({ _id: false })` on a top-level collection class — only correct for embedded sub-documents (e.g., `Address`, `EmergencyContact`).
+  - Using `mongoose.Schema.Types.ObjectId` as the TypeScript property type — the runtime type is `mongoose.Types.ObjectId`; `Schema.Types.ObjectId` is the schema descriptor.
+  - Mismatched `ref:` string vs. the `name:` in `MongooseModule.forFeature()` — causes `.populate()` to silently return `null` with no error.
+  - `.populate()` called without a projection (second argument) — always specify which fields are needed to avoid over-fetching.
 
 ### Unit Tests
 
@@ -260,9 +265,10 @@ PORT=3000
 
 > Update this line as you progress through the curriculum.
 
-**Current**: Phase 1.5 — Bookings (ObjectId references, `.populate()`, pagination).
+**Current**: Phase 2.1 — Indexes (single field, compound, `explain()`).
 
 **Completed**:
 
 - Phase 1.3 ✅ Full CRUD + comparison operators + `ParseCategoryArrayPipe` + `ParseEnumPipe` + `ParseFloatPipe` on all filter endpoints.
 - Phase 1.4 ✅ Customer profiles — embedded `Address` + `EmergencyContact[]`, array queries (`$in`, `$all`), projection with `CustomerSummaryDto` / `ClassSerializerInterceptor`.
+- Phase 1.5 ✅ Bookings — ObjectId references, `ref: Class.name` pattern, `.populate()` with projection, slot conflict check (`$nin`), pagination (`skip`/`limit`), `ParseIntPipe` on query params.

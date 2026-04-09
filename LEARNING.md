@@ -223,15 +223,15 @@ export const ServiceSchema = SchemaFactory.createForClass(WellnessService);
 
 ### CRUD Operations — Key Patterns
 
-| Operation | Mongoose Method                                      | SQL Equivalent        |
-| --------- | ---------------------------------------------------- | --------------------- |
-| Create    | `model.create(dto)`                                  | `INSERT INTO`         |
-| Read all  | `model.find(filter)`                                 | `SELECT * WHERE`      |
-| Read one  | `model.findById(id)`                                 | `SELECT * WHERE id =` |
-| Update    | `model.findByIdAndUpdate(id, update, { new: true })` | `UPDATE WHERE`        |
-| Delete    | `model.findByIdAndDelete(id)`                        | `DELETE WHERE`        |
+| Operation | Mongoose Method                                                    | SQL Equivalent        |
+| --------- | ------------------------------------------------------------------ | --------------------- |
+| Create    | `model.create(dto)`                                                | `INSERT INTO`         |
+| Read all  | `model.find(filter)`                                               | `SELECT * WHERE`      |
+| Read one  | `model.findById(id)`                                               | `SELECT * WHERE id =` |
+| Update    | `model.findByIdAndUpdate(id, update, { returnDocument: 'after' })` | `UPDATE WHERE`        |
+| Delete    | `model.findByIdAndDelete(id)`                                      | `DELETE WHERE`        |
 
-**Key Option: `{ new: true }`** — Without this, `findByIdAndUpdate` returns the document _before_ the update. Always pass `{ new: true }` unless you specifically need the old version.
+**Key Option: `{ returnDocument: 'after' }`** — Without this, `findByIdAndUpdate` returns the document _before_ the update. Always pass `{ returnDocument: 'after' }` unless you specifically need the old version. (`{ new: true }` is the legacy equivalent — deprecated in Mongoose 7+.)
 
 ### Filtering — The Query Object
 
@@ -250,12 +250,62 @@ Common comparison operators:
 - `$lt / $lte` — less than / less than or equal
 - `$in` — value is in an array: `{ category: { $in: ['massage', 'herbal'] } }`
 
+### Pipes — Validating and Transforming Non-Body Input
+
+`ValidationPipe` + DTO decorators handle **request body** data. For `@Query()` and `@Param()` values, the data arrives as raw strings with no DTO layer — pipes fill that gap.
+
+#### Built-in pipes for query/route params
+
+```typescript
+// ParseEnumPipe — validates a single string against an enum
+@Get('/filter/category')
+async findByCategory(
+  @Query('category', new ParseEnumPipe(ServiceCategory)) category: ServiceCategory,
+)
+// → rejects 'invalid' with 400, passes 'massage' as ServiceCategory.Massage
+
+// ParseFloatPipe — coerces a query string to a number
+@Get('/filter/price/min')
+async findByMinPrice(
+  @Query('min', new ParseFloatPipe()) min: number,
+)
+// → query strings are always string; without this pipe, min would be '100' not 100
+```
+
+#### Custom pipe — when built-ins aren't enough
+
+When you need to split, trim, and validate a comma-separated query string into an enum array, write a `PipeTransform`:
+
+```typescript
+// PipeTransform<InputType, OutputType>
+@Injectable()
+export class ParseCategoryArrayPipe implements PipeTransform<string, ServiceCategory[]> {
+  transform(value: string): ServiceCategory[] {
+    // 1. split on comma
+    // 2. trim whitespace
+    // 3. filter empty strings
+    // 4. validate each against the enum — throw BadRequestException if invalid
+    // 5. return ServiceCategory[]
+  }
+}
+```
+
+#### When to use a pipe vs. DTO validation
+
+| Input source | Validation approach                                 |
+| ------------ | --------------------------------------------------- |
+| `@Body()`    | `@IsEnum()` / other decorators in the DTO class     |
+| `@Query()`   | `ParseEnumPipe`, `ParseFloatPipe`, or custom pipe   |
+| `@Param()`   | `ParseEnumPipe`, `ParseIntPipe`, or `ParseUUIDPipe` |
+
+> **Rule**: Pipes belong at the HTTP boundary for non-body inputs. DTOs belong at the body boundary. Never apply `ParseEnumPipe` to a `@Body()` field — use `@IsEnum()` in the DTO instead.
+
 ### Checkpoint 1.3 ✅ Complete
 
 - [x] You can POST a new service and see it appear in MongoDB Compass.
 - [x] You can GET all services filtered by `category`.
 - [x] You can PATCH a service's price using `findByIdAndUpdate`.
-- [x] You understand what `{ new: true }` does and why you need it.
+- [x] You understand what `{ returnDocument: 'after' }` does and why you need it.
 - [x] `ValidationPipe` with `whitelist: true` rejects invalid and missing fields with `400`.
 - [x] `HydratedDocument<T>` used instead of the legacy `WellnessService & Document` intersection.
 - [x] Comparison operator methods added to `ServicesService`: `$gt`, `$gte`, `$lte`, `$ne`, `$exists`, `$in`.
@@ -392,19 +442,131 @@ export class Booking {
 }
 ```
 
+### The Two ObjectId Types — A Common Confusion
+
+Mongoose uses two different `ObjectId` identifiers that look similar but serve different purposes:
+
+| Identifier                       | Where used                    | What it is                                                       |
+| -------------------------------- | ----------------------------- | ---------------------------------------------------------------- |
+| `mongoose.Schema.Types.ObjectId` | Inside `@Prop({ type: ... })` | Schema-level instruction — tells Mongoose how to store the field |
+| `mongoose.Types.ObjectId`        | TypeScript property type      | Runtime value type — the actual ObjectId instance in memory      |
+
+```typescript
+// Correct — schema type and TS type are different things
+@Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true })
+customer: mongoose.Types.ObjectId;  // ← runtime value type
+
+// Wrong — do not use Schema.Types.ObjectId as the TS type
+@Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true })
+customer: mongoose.Schema.Types.ObjectId;  // ← this is a schema descriptor, not a value
+```
+
+Think of it this way: `Schema.Types.ObjectId` is the **instruction** ("store this as an ObjectId"), and `Types.ObjectId` is the **thing you actually hold** after a query.
+
+### The `ref` String Must Match Exactly
+
+The string you pass to `ref:` must exactly match the `name:` used when registering the model with `MongooseModule.forFeature()`:
+
+```typescript
+// bookings.schema.ts
+@Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true })
+//                                                   ↑ must match ↓
+
+// customers.module.ts
+MongooseModule.forFeature([{ name: 'Customer', schema: CustomerSchema }])
+```
+
+> **Silent bug**: If the strings do not match, `.populate('customer')` returns `null` — no error is thrown. This is one of the most common hard-to-diagnose bugs with Mongoose references.
+
+### What Gets Stored in MongoDB
+
+Only the ObjectId is written to the booking document — never the full object:
+
+```json
+{
+  "_id": "664a1f...",
+  "customer": "663f8b2a1c4e5f0012345678",
+  "service": "663f8b2a1c4e5f0087654321",
+  "appointmentDate": "2026-04-15T09:00:00Z",
+  "startTime": "09:00",
+  "status": "pending"
+}
+```
+
+The full `Customer` and `WellnessService` documents stay in their own collections. The booking holds only a **pointer**.
+
 ### Populating References — `.populate()`
 
 When you store a reference, you store only the ObjectId. To get the full document, use `.populate()`:
 
 ```typescript
-// Returns booking with full customer and service objects instead of just IDs
-model
+// Without populate — you get the raw ObjectId back
+const booking = await this.bookingModel.findById(id);
+booking.customer; // → ObjectId('663f8b2a...')  ← not useful to a client
+
+// With populate — Mongoose runs a second query and replaces the ObjectId
+const booking = await this.bookingModel
   .findById(id)
   .populate('customer', 'firstName lastName email') // only these fields
   .populate('service', 'name price durationMinutes');
+booking.customer; // → { firstName: 'Nadia', lastName: 'Lee', email: '...' }
 ```
 
-**Important**: Population is a second database query behind the scenes. Do not over-populate. Only populate what the response actually needs.
+**Important**: Population is a second database query behind the scenes — not a free JOIN. Do not over-populate. Only populate what the response actually needs, and always specify a projection (the second argument) to avoid fetching the entire document.
+
+### Module Wiring — What to Import and Why
+
+`BookingsModule` only needs to register its own schema:
+
+```typescript
+// bookings.module.ts
+MongooseModule.forFeature([{ name: 'Booking', schema: BookingSchema }]);
+```
+
+It does **not** need to import `CustomersModule` or `ServicesModule`. Here is why.
+
+#### NestJS `imports:[]` vs. Mongoose connection
+
+These two things are completely separate:
+
+|                                    | Purpose                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------- |
+| NestJS `imports: [OtherModule]`    | Makes another module's **services and providers** available for injection |
+| `MongooseModule.forFeature([...])` | Registers a **Mongoose model** on the shared DB connection                |
+
+`.populate()` is resolved by Mongoose at query time — it looks up the named model on the **connection**, not through the NestJS DI container. As long as `CustomerSchema` is registered somewhere in the app (inside `CustomersModule`), the `'Customer'` model exists on the connection and `.populate('customer')` will find it.
+
+```
+NestJS DI container                    Mongoose connection
+─────────────────────                  ──────────────────────────────
+BookingsModule                         models registered on connection:
+  └─ BookingsService          ──────►    'Booking'         ← from BookingsModule
+  └─ BookingsController                  'Customer'        ← from CustomersModule
+                                         'WellnessService' ← from ServicesModule
+
+.populate('customer') → asks the connection → finds 'Customer' model → runs query
+```
+
+#### When you would import another module
+
+Only import `CustomersModule` into `BookingsModule` if you need to **inject `CustomersService`** — for example, to validate that a `customerId` actually exists before saving a booking. That kind of cross-service call requires DI, which requires the module import.
+
+For Phase 1.5, that check is skipped. The ObjectId format is validated by the DTO, and existence validation becomes part of a transaction in Phase 3.
+
+#### Making `ref:` rename-safe
+
+The `ref:` string in a schema prop is still a hardcoded literal by default. To eliminate the silent mismatch bug entirely, import the referenced class and use its `.name` property:
+
+```typescript
+// Instead of a hardcoded string:
+@Prop({ type: MongooseSchema.Types.ObjectId, ref: 'Customer', required: true })
+
+// Production pattern — rename-safe:
+import { Customer } from '../../customers/schemas/customer.schema';
+@Prop({ type: MongooseSchema.Types.ObjectId, ref: Customer.name, required: true })
+```
+
+`Customer.name` resolves to the string `'Customer'` at runtime — zero performance cost, but if the class is ever renamed the ref updates automatically. No circular dependency risk as long as the referenced schema does not import back from the booking schema.
 
 ### Checking for Conflicts — Availability Logic
 
@@ -424,6 +586,8 @@ async isSlotAvailable(serviceId: string, date: Date, startTime: string): Promise
 
 ### Sorting and Pagination
 
+Chain the query methods in this order: `find()` → `sort()` → `skip()` → `limit()`:
+
 ```typescript
 // Page 2, 10 items per page, newest first
 model
@@ -433,12 +597,159 @@ model
   .limit(10); // take 10
 ```
 
-### Checkpoint 1.5
+**Pagination formula**: `skip = (page - 1) * limit`
 
-- [ ] A new booking correctly stores ObjectId references (not the full objects).
-- [ ] `.populate()` returns enriched booking data.
-- [ ] You can list upcoming bookings sorted by date.
-- [ ] Booking a slot that is already taken returns an appropriate error.
+| page | limit | skip | result      |
+| ---- | ----- | ---- | ----------- |
+| 1    | 10    | 0    | items 1–10  |
+| 2    | 10    | 10   | items 11–20 |
+| 3    | 10    | 20   | items 21–30 |
+
+`find()` never returns `null` — it returns an empty array `[]` when nothing matches. Do not type the return as `Promise<T[] | null>`.
+
+### Populate with Pagination — Query Cost
+
+When `.populate()` is chained after a paginated `.find()`, Mongoose executes **three separate database queries**:
+
+1. One query to fetch the matching bookings (sort + skip + limit applied here)
+2. One query to fetch all referenced `Customer` documents for that page
+3. One query to fetch all referenced `WellnessService` documents for that page
+
+This is the cost of `.populate()` at scale. For Phase 1.5 this is acceptable. In Phase 2.2, the aggregation pipeline (`$lookup`) is introduced as a single-query alternative.
+
+### Skip-Based Pagination — Limitations
+
+`(page - 1) * limit` is the standard formula for offset pagination and is correct for Phase 1.5. However, it has two known production problems:
+
+**1. Cursor drift** — data changes between page requests cause items to be skipped or duplicated:
+
+```
+User loads page 1 → sees bookings 1–10
+Booking #3 is cancelled and deleted
+User loads page 2 → .skip(10) now skips a shifted set
+                  → booking #11 (now #10) is never seen
+```
+
+**2. Performance at depth** — `skip(10000)` makes MongoDB scan and discard 10,000 documents before returning results. Gets slower the deeper the page.
+
+### The Production Alternative — Keyset Pagination
+
+Instead of skipping, pass the last seen value as a filter cursor:
+
+```typescript
+// First page — no cursor
+model.find().sort({ appointmentDate: 1 }).limit(10);
+
+// Next page — pass the last appointmentDate from the previous response
+model
+  .find({ appointmentDate: { $gt: lastSeenDate } })
+  .sort({ appointmentDate: 1 })
+  .limit(10);
+```
+
+No skip, no drift, constant performance regardless of depth. This is what production APIs use for infinite scroll and "load more" patterns.
+
+| Scenario                                  | Recommended                                      |
+| ----------------------------------------- | ------------------------------------------------ |
+| Admin panel, small dataset, low traffic   | `skip()` — simpler                               |
+| Public API, large dataset, real-time data | Keyset pagination                                |
+| Infinite scroll / "load more"             | Keyset pagination                                |
+| Numbered pages ("go to page 47")          | `skip()` — keyset cannot jump to arbitrary pages |
+
+For Phase 1.5, `skip()` is the right starting point. Keyset pagination becomes relevant in Phase 2 when indexes and query performance are the focus.
+
+### Checkpoint 1.5 ✅ Complete
+
+- [x] A new booking correctly stores ObjectId references (not the full objects).
+- [x] `.populate()` returns enriched booking data.
+- [x] You can list upcoming bookings sorted by date.
+- [x] Booking a slot that is already taken returns an appropriate error.
+- [x] Conflict check uses `$nin: ['cancelled']` — cancelled bookings free the slot for rebooking.
+- [x] `ParseIntPipe` applied to `page` and `limit` query params — query strings coerced to integers.
+- [x] `ref: Customer.name` / `ref: WellnessService.name` used instead of hardcoded strings — rename-safe.
+
+---
+
+## Phase 1 — Summary
+
+### MongoDB Concepts
+
+**Schema Design — Embed vs. Reference**
+
+- Embed when data is owned by one parent, always read together, bounded size (`Address`, `EmergencyContact[]` on Customer)
+- Reference (ObjectId) when data is shared, large, or independently queryable (`Booking → Customer`, `Booking → WellnessService`)
+
+**CRUD Operations**
+
+- `create()`, `find()`, `findById()`, `findByIdAndUpdate()`, `findByIdAndDelete()`
+- `{ returnDocument: 'after' }` — returns the updated document (Mongoose 7+; `{ new: true }` is deprecated)
+
+**Query Operators**
+
+- Comparison: `$gt`, `$gte`, `$lte`, `$ne`, `$in`, `$nin`, `$exists`
+- Array queries: exact match, `$in` (any of), `$all` (all of)
+
+**ObjectId References**
+
+- `Schema.Types.ObjectId` (schema descriptor) vs. `Types.ObjectId` (runtime value) — different things, often confused
+- `ref: Customer.name` instead of `ref: 'Customer'` — rename-safe, prevents silent `null` bug on populate mismatch
+- `ref:` is resolved at the **connection level**, not the NestJS module level — no need to import other modules just for populate
+
+**`.populate()`**
+
+- Replaces stored ObjectIds with full documents at query time
+- Always specify a projection (second argument) — avoids over-fetching and accidental sensitive field exposure
+- Costs one extra DB round-trip per populated field (3 total with two populates)
+
+**Pagination**
+
+- `.sort()` → `.skip()` → `.limit()` chain
+- Formula: `skip = (page - 1) * limit`
+- `find()` never returns `null` — returns `[]` when nothing matches
+- Limitation: cursor drift when data changes between pages → keyset pagination (`$gt: lastSeenValue`) is the production alternative for large/live datasets
+
+**Conflict Check with `$nin`**
+
+- `$nin: ['cancelled']` excludes cancelled bookings from slot availability checks
+- Cancelled bookings free the slot; all other statuses (`pending`, `confirmed`, `in-progress`, `completed`) hold it
+- `$nin` preferred over `$ne` — easy to extend with additional excluded values
+
+---
+
+### NestJS / Architecture Concepts
+
+**Validation layers**
+
+- `@Body()` → DTO + `class-validator` decorators (`@IsEnum`, `@IsMongoId`, `@IsDate`, `@IsNumber`)
+- `@Query()` / `@Param()` → pipes (`ParseIntPipe`, `ParseEnumPipe`, custom `PipeTransform`)
+- `@Type(() => Date)` from `class-transformer` required to coerce ISO strings to `Date` before `@IsDate()` validates
+
+**NestJS module wiring**
+
+- `MongooseModule.forFeature()` registers models on the **shared connection** — not scoped to a module
+- `imports: [OtherModule]` is for DI (injecting services), not for making Mongoose models available to populate
+
+**Pipe instantiation**
+
+- No `new` when no constructor args needed (`ParseIntPipe`, `ParseCategoryArrayPipe`)
+- `new` only when passing constructor args (`new ParseEnumPipe(ServiceCategory)`)
+
+**Route ordering**
+
+- Static routes (`GET /inactive`, `GET /projection`) must be declared **before** dynamic routes (`GET /:id`) — NestJS matches top to bottom; a dynamic route will swallow static ones below it
+
+---
+
+### Production Patterns Applied
+
+| Pattern                                     | Why                                                             |
+| ------------------------------------------- | --------------------------------------------------------------- |
+| `ref: Customer.name`                        | Rename-safe — prevents silent `null` on populate mismatch       |
+| `@IsMongoId()` on ID inputs                 | Rejects malformed ObjectId strings at the HTTP boundary         |
+| `ParseIntPipe` on page/limit                | Query strings are always strings — pipes coerce at the boundary |
+| `.populate()` with projection               | Avoids over-fetching and leaking sensitive fields               |
+| `$nin` over `$ne` for exclusions            | Future-proof — easy to add more excluded statuses               |
+| `private readonly` on injected dependencies | Prevents accidental reassignment after construction             |
 
 ---
 
@@ -446,12 +757,12 @@ model
 
 Before moving to Phase 2, you must be able to do all of the following without looking at notes:
 
-- [ ] Design a schema with embedded sub-documents and referenced ObjectIds.
-- [ ] Perform all five CRUD operations using Mongoose in a NestJS service.
-- [ ] Write a query using at least two comparison operators (`$gte`, `$in`, etc.).
-- [ ] Populate a referenced field in a single query.
-- [ ] Explain why you would embed `preferredLanguages` but reference `service` in a booking.
-- [ ] Apply `.sort()`, `.skip()`, and `.limit()` for paginated results.
+- [x] Design a schema with embedded sub-documents and referenced ObjectIds.
+- [x] Perform all five CRUD operations using Mongoose in a NestJS service.
+- [x] Write a query using at least two comparison operators (`$gte`, `$in`, etc.).
+- [x] Populate a referenced field in a single query.
+- [x] Explain why you would embed `preferredLanguages` but reference `service` in a booking.
+- [x] Apply `.sort()`, `.skip()`, and `.limit()` for paginated results.
 
 ---
 
