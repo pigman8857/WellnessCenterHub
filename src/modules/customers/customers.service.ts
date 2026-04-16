@@ -42,6 +42,25 @@ export class CustomersService {
     return await this.customerModel.find({ preferredLanguages: { $in: preferredLanguage } }).exec();
   }
 
+  //Query With Email which is indexed
+  async findByEmail(email: string): Promise<CustomerDocument> {
+    const result = await this.customerModel.findOne({ email }).exec();
+    if (!result) throw new NotFoundException();
+    return result;
+  }
+
+  // Learning/debug method — not a production endpoint
+  // Returns the raw MongoDB execution plan instead of a document
+  async explainFindByEmail(email: string) {
+    // 1. call findOne({ email })
+    // 2. chain .explain('executionStats')  ← returns plan object, not a document
+    // 3. return the result (no NotFoundException needed — this never returns null)
+
+    const result = await this.customerModel.findOne({ email }).explain('executionStats');
+
+    return result;
+  }
+
   //Querying an Embedded Array
   async findAllByAllPreferredLanguages(preferredLanguages: string[]): Promise<CustomerDocument[]> {
     return await this.customerModel

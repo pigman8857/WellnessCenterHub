@@ -41,6 +41,31 @@ export class BookingsService {
     return await result.save();
   }
 
+  private buildDateServiceFilter(date: Date, serviceId?: string) {
+    return {
+      appointmentDate: date,
+      ...(serviceId && { service: serviceId }),
+    };
+  }
+
+  async findByDateAndService(
+    appointmentDate: Date,
+    serviceId?: string,
+  ): Promise<BookingDocument[]> {
+    return await this.bookingModel
+      .find(this.buildDateServiceFilter(appointmentDate, serviceId))
+      .exec();
+  }
+
+  async explainFindByDateAndService(appointmentDate: Date, serviceId?: string) {
+    // 1. build the same filter as above (same logic)
+    // 2. call find(filter).explain('executionStats')
+    // 3. return the result directly
+    return await this.bookingModel
+      .find(this.buildDateServiceFilter(appointmentDate, serviceId))
+      .explain('executionStats');
+  }
+
   async findAll(page: number, limit: number): Promise<BookingDocument[]> {
     // Pagination + Population
 

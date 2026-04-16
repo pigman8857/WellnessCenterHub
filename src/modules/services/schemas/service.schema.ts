@@ -6,22 +6,22 @@ export type ServiceDocument = HydratedDocument<WellnessService>;
 @Schema({ timestamps: true }) //adds createdAt, UpdatedAt automatically
 export class WellnessService {
   @Prop({ required: true })
-  name: string;
+  declare name: string;
 
   @Prop()
-  description: string;
+  declare description?: string;
 
   @Prop({ required: true })
-  durationMinutes: number;
+  declare durationMinutes: number;
 
   @Prop({ required: true, type: Number })
-  price: number;
+  declare price: number;
 
   @Prop({ required: true, enum: ['massage', 'meditation', 'herbal', 'beauty', 'retreat'] })
-  category: string;
+  declare category: string;
 
   @Prop({ default: true })
-  isActive: boolean;
+  declare isActive: boolean;
 }
 
 export const ServiceSchema = SchemaFactory.createForClass(WellnessService);

@@ -8,35 +8,39 @@ export type CustomerDocument = HydratedDocument<Customer>;
 @Schema({ timestamps: true })
 export class Customer {
   @Prop({ required: true })
-  firstName: string;
+  declare firstName: string;
 
   @Prop({ required: true })
-  lastName: string;
+  declare lastName: string;
 
+  //unique: true already creates an index , no need for { index: true }
   @Prop({ required: true, unique: true, lowercase: true })
-  email: string;
+  declare email: string;
 
   @Prop()
-  phone: string;
+  declare phone?: string;
 
   //Embedded sub-document
   //Why embed? An address belongs to one customer, is always read with them, and is never queried independently.
   @Prop({ type: AddressSchema })
-  address: Address;
+  declare address?: Address;
 
   @Prop({ enum: ['local', 'international'], default: 'local' })
-  customerType: string;
+  declare customerType: string;
 
   //Embedded Array
   @Prop({ type: [String], default: [] })
-  preferredLanguages: string[];
+  declare preferredLanguages: string[];
 
   @Prop({ type: Date })
-  dateOfBirth: Date;
+  declare dateOfBirth?: Date;
 
   //array of embedded objects
   @Prop({ type: [EmergencyContactSchema], default: [] })
-  emergencyContacts: EmergencyContact[];
+  declare emergencyContacts: EmergencyContact[];
 }
 
-export const CustomerSchema = SchemaFactory.createForClass(Customer);
+const CustomerSchema = SchemaFactory.createForClass(Customer);
+// CustomerSchema.index({ email: 1 }); // 1 = ascending
+
+export { CustomerSchema };

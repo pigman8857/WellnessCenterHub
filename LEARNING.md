@@ -737,6 +737,12 @@ For Phase 1.5, `skip()` is the right starting point. Keyset pagination becomes r
 **Route ordering**
 
 - Static routes (`GET /inactive`, `GET /projection`) must be declared **before** dynamic routes (`GET /:id`) — NestJS matches top to bottom; a dynamic route will swallow static ones below it
+- `@Get()` and `@Get('')` are **identical routes** — both resolve to `GET /customers`. NestJS registers and matches the first one; the second handler is never reached. Use a distinct path (e.g. `@Get('search')`) or merge the query param into the existing `@Get()` handler as an optional `@Query()` param.
+
+**`@Query()` param guards**
+
+- A `@Query('email') email: string` param is `undefined` if the caller omits `?email=`. Passing `undefined` directly to `findOne({ email: undefined })` does not throw — Mongoose runs the query and may return unexpected results (e.g. the first document without that field).
+- Always guard optional query params before using them: throw `BadRequestException` if the param is required, or branch on `undefined` if it is truly optional.
 
 ---
 
@@ -796,11 +802,13 @@ CustomerSchema.index({ email: 1 }); // 1 = ascending
 Or via Mongoose decorator:
 
 ```typescript
-@Prop({ required: true, unique: true, index: true })
+@Prop({ required: true, unique: true })
 email: string;
 ```
 
 `unique: true` creates a unique index — MongoDB will reject duplicate values.
+
+> **`unique: true` vs `index: true`**: `unique: true` already implies an index — adding `index: true` alongside it is redundant. Mongoose merges them into one index, so no double-index bug, but it signals a misunderstanding of what `unique` does. Only add `index: true` on its own when you want a plain (non-unique) index via the decorator. If you also want `.index()` called explicitly at the bottom, remove `index: true` / `unique: true` from the `@Prop` to avoid defining the same index twice.
 
 ### Compound Index
 
@@ -828,12 +836,14 @@ db.bookings
 
 Look for `"winningPlan"` → `"IXSCAN"` (index scan). If you see `"COLLSCAN"` (collection scan), your index is not being used.
 
-### Checkpoint 2.1
+### Checkpoint 2.1 ✅ Complete
 
-- [ ] You have a unique index on `Customer.email`.
-- [ ] You have a compound index on `Booking` for `(appointmentDate, service)`.
-- [ ] You can use Compass or the shell to confirm an `IXSCAN` is used.
-- [ ] You can explain the left-prefix rule with the compound index example.
+- [x] You have a unique index on `Customer.email` — `unique: true` on `@Prop()` creates it implicitly; `index: true` alongside it is redundant.
+- [x] You have a compound index on `Booking` for `(appointmentDate, service)` — declared via `BookingSchema.index({ appointmentDate: 1, service: 1 })` after `SchemaFactory.createForClass()`.
+- [x] `explain('executionStats')` confirmed `IXSCAN` on `appointmentDate_1_service_1` for both-field and date-only queries; `COLLSCAN` for service-only query (left-prefix violation).
+- [x] Left-prefix rule verified: `find({ appointmentDate, service })` → `IXSCAN`; `find({ appointmentDate })` → `IXSCAN` with open `service` bounds `[MinKey, MaxKey]`; `find({ service })` → `COLLSCAN`, `totalKeysExamined: 0`.
+- [x] `explain()` implemented as a dedicated NestJS service method + controller endpoint (`GET /bookings/by-date/explain`) — not mixed into the real query method.
+- [x] Left-prefix violation tested via VS Code MongoDB Playground (`use('wellness_center')`) — API layer correctly rejects the query (missing required `date` param), so DB-level proof requires going direct.
 
 ---
 

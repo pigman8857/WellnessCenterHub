@@ -16,6 +16,7 @@ import { CreateCustomerDto } from './dto/create-customer.dto';
 import { CustomerDocument } from './schemas/customer.schema';
 import { CustomerSummaryDto } from './dto/customer-summary.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
+import { ValidateEmailPipe } from './pipes/no-email.pipe';
 @Controller('customers')
 export class CustomersController {
   constructor(private readonly customerService: CustomersService) {}
@@ -30,6 +31,17 @@ export class CustomersController {
   @Get()
   async findAll(): Promise<CustomerDocument[]> {
     return await this.customerService.findAll();
+  }
+
+  @Get('/by-email')
+  async findByEmail(@Query('email', ValidateEmailPipe) email: string): Promise<CustomerDocument> {
+    return await this.customerService.findByEmail(email);
+  }
+
+  // GET /customers/explain/email?email=foo@bar.com
+  @Get('explain/email')
+  async explainByEmail(@Query('email', ValidateEmailPipe) email: string) {
+    return this.customerService.explainFindByEmail(email);
   }
 
   // GET /customers/projection

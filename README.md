@@ -16,8 +16,8 @@ The wellness center domain (Thai massage, herbal treatments, retreat bookings, t
 
 | Phase                | Topic                                                          | Status         |
 | -------------------- | -------------------------------------------------------------- | -------------- |
-| **1 — Basic**        | CRUD, Schema Design, Embed vs. Reference                       | 🔄 In progress |
-| **2 — Intermediate** | Indexes, Aggregation Pipeline, Geospatial, Validation, Reviews | 🔲 Not started |
+| **1 — Basic**        | CRUD, Schema Design, Embed vs. Reference                       | ✅ Complete    |
+| **2 — Intermediate** | Indexes, Aggregation Pipeline, Geospatial, Validation, Reviews | 🔄 In progress |
 | **3 — Advanced**     | Transactions, Change Streams, Clean Architecture, Atlas DevOps | 🔲 Not started |
 
 ### Phase 1 Progress
@@ -29,6 +29,16 @@ The wellness center domain (Thai massage, herbal treatments, retreat bookings, t
 | 1.3       | Service catalog (CRUD)       | ✅ Complete |
 | 1.4       | Customer profiles (embedded) | ✅ Complete |
 | 1.5       | Bookings (references)        | ✅ Complete |
+
+### Phase 2 Progress
+
+| Sub-phase | Topic                           | Status         |
+| --------- | ------------------------------- | -------------- |
+| 2.1       | Indexes + `explain()`           | ✅ Complete    |
+| 2.2       | Aggregation Pipeline            | 🔄 In progress |
+| 2.3       | Geospatial queries              | 🔲 Not started |
+| 2.4       | MongoDB JSON Schema Validation  | 🔲 Not started |
+| 2.5       | Review system (computed fields) | 🔲 Not started |
 
 Full curriculum with concept explanations, code guidance, and phase checkpoints: **[LEARNING.md](LEARNING.md)**
 

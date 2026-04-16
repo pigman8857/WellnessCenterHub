@@ -8,28 +8,31 @@ export type BookingDocument = HydratedDocument<Booking>;
 @Schema({ timestamps: true })
 export class Booking {
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: Customer.name, required: true })
-  customer: Types.ObjectId;
+  declare customer: Types.ObjectId;
 
   @Prop({ type: MongooseSchema.Types.ObjectId, ref: WellnessService.name, required: true })
-  service: Types.ObjectId;
+  declare service: Types.ObjectId;
 
   @Prop({ required: true })
-  appointmentDate: Date;
+  declare appointmentDate: Date;
 
   @Prop({ required: true })
-  startTime: string; // "14:00"
+  declare startTime: string; // "14:00"
 
   @Prop({
     enum: ['pending', 'confirmed', 'in-progress', 'completed', 'cancelled'],
     default: 'pending',
   })
-  status: string;
+  declare status: string;
 
   @Prop()
-  specialRequests: string;
+  declare specialRequests?: string;
 
   @Prop({ type: Number })
-  totalPrice: number;
+  declare totalPrice?: number;
 }
 
-export const BookingSchema = SchemaFactory.createForClass(Booking);
+const BookingSchema = SchemaFactory.createForClass(Booking);
+BookingSchema.index({ appointmentDate: 1, service: 1 });
+
+export { BookingSchema };

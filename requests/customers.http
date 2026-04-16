@@ -2,6 +2,8 @@
 # After creating a customer, paste the returned _id here
 @customerId = 69cf76967daee5c27fa74a32
 
+@email = napat@example.com
+
 # ─── CREATE ────────────────────────────────────────────────────────────────────
 
 ### Create customer — full payload (local, Thai+English, with address and emergency contact)
@@ -59,6 +61,12 @@ Content-Type: application/json
 
 ### Get all customers — full documents
 GET {{baseUrl}}/customers
+
+### Get by Email — full documents
+GET {{baseUrl}}/customers/by-email?email={{email}}
+
+### Debug Get by Email api - indexing explain
+GET {{baseUrl}}/customers/explain/email?email={{email}}
 
 ### Get all customers — projection (firstName, lastName, email only — no _id)
 # Expected: array with only 3 fields per object, _id must be absent

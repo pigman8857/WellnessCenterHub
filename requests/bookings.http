@@ -114,6 +114,33 @@ Content-Type: application/json
   "startTime": "10:00"
 }
 
+# ─── INDEX VERIFICATION (Phase 2.1) ───────────────────────────────────────────
+
+### Find by date + service — both index fields (IXSCAN expected)
+# Tests: compound index { appointmentDate: 1, service: 1 } — full index used
+# Expected: array of bookings matching the date and service
+GET {{baseUrl}}/bookings/by-date?date=2026-05-01&serviceId={{serviceId}}
+
+### Find by date only — left-prefix rule (IXSCAN expected)
+# Tests: compound index left-prefix — appointmentDate alone still uses the index
+# Expected: all bookings on that date regardless of service
+GET {{baseUrl}}/bookings/by-date?date=2026-05-01
+
+### Explain — both fields (verify IXSCAN in winningPlan)
+# Look for: winningPlan.inputStage.stage = "IXSCAN"
+#           indexName = "appointmentDate_1_service_1"
+#           totalKeysExamined = totalDocsExamined (no wasted reads)
+GET {{baseUrl}}/bookings/by-date/explain?date=2026-05-01&serviceId={{serviceId}}
+
+### Explain — date only (left-prefix, still IXSCAN)
+# Look for: same IXSCAN but wider indexBounds (all services on that date)
+GET {{baseUrl}}/bookings/by-date/explain?date=2026-05-01
+
+### Explain — service only (COLLSCAN expected — left-prefix rule violation)
+# Tests: querying non-leftmost field alone does NOT use the compound index
+# Look for: winningPlan.stage = "COLLSCAN" — index is skipped entirely
+GET {{baseUrl}}/bookings/by-date/explain?serviceId={{serviceId}}
+
 # ─── DELETE ────────────────────────────────────────────────────────────────────
 
 ### Delete booking by id
