@@ -265,7 +265,7 @@ PORT=3000
 
 > Update this line as you progress through the curriculum.
 
-**Current**: Phase 2.2 — Aggregation Pipeline (`$match`, `$group`, `$lookup`, `$unwind`, `$project`).
+**Current**: Phase 2.2 — Aggregation Pipeline. Pipeline 1 (Monthly Revenue) ✅ shipped. Next: verify `explain()` on the aggregation, then Pipeline 2 (`$lookup` + `$unwind`) and Pipeline 3.
 
 **Completed**:
 
@@ -273,3 +273,4 @@ PORT=3000
 - Phase 1.4 ✅ Customer profiles — embedded `Address` + `EmergencyContact[]`, array queries (`$in`, `$all`), projection with `CustomerSummaryDto` / `ClassSerializerInterceptor`.
 - Phase 1.5 ✅ Bookings — ObjectId references, `ref: Class.name` pattern, `.populate()` with projection, slot conflict check (`$nin`), pagination (`skip`/`limit`), `ParseIntPipe` on query params.
 - Phase 2.1 ✅ Indexes — unique index on `Customer.email` (`unique: true`), compound index on `Booking (appointmentDate, service)`, `explain('executionStats')` verified `IXSCAN` vs `COLLSCAN`, left-prefix rule proven via VS Code MongoDB Playground.
+- Phase 2.2 🔄 In progress — Pipeline 1 (Monthly Revenue) complete: `analytics` module wired with cross-module `MongooseModule.forFeature([Booking])`, `PipelineStage[]` typed, 4-stage pipeline (`$match` → `$group` → `$sort` → `$project`) returns `MonthlyRevenue[]` matching the generic. Reusable `MonthlyRevenue` interface extracted to `src/modules/analytics/types.ts`. Test data seeded via `requests/analytics-seed.mongodb.js`.

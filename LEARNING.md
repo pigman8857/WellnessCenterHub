@@ -875,6 +875,68 @@ Each stage is an object inside an array. Order matters.
 
 ### Pipeline 1: Monthly Revenue Report
 
+#### Concept Walkthrough
+
+**Business question**: _For a given year, what was our total revenue and how many bookings did we have each month?_
+
+**Why aggregation, not `.find()`**: `.find()` returns documents as they are. This question needs documents **transformed** — filtered, grouped into buckets of 12, summed, and reshaped. That is exactly what the pipeline does.
+
+**The funnel** (each stage narrows or reshapes the data flowing through):
+
+```
+  bookings collection  (thousands of docs)
+          │
+       $match          ← keep only completed, in this year
+          ▼
+   (hundreds of docs, same shape)
+          │
+       $group          ← collapse into 12 month buckets
+          ▼
+   (up to 12 docs, new shape: { _id, totalRevenue, bookingCount })
+          │
+       $sort           ← order by month ascending
+          ▼
+       $project        ← rename _id → month for a clean response
+          ▼
+        result
+```
+
+**Stage-by-stage mental model**:
+
+| Stage      | What it does                                                                                                                                                      | Why here                                                                                                                          |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `$match`   | Keeps only `status: 'completed'` bookings within `[year-01-01, (year+1)-01-01)` — a half-open interval (`$gte` start, `$lt` end) so there are no edge-case bugs.  | **First** so the compound index on `(appointmentDate, service)` from Phase 2.1 can be used. Every later stage works on less data. |
+| `$group`   | Collapses all matched documents into 12 buckets keyed by `{ $month: '$appointmentDate' }`. Accumulators `$sum: '$totalPrice'` and `$sum: 1` carry values forward. | `_id` here is the **grouping key**, not a document id. Anything not produced by an accumulator is **gone** after this stage.      |
+| `$sort`    | Orders the 12 group documents by `_id` (month) ascending.                                                                                                         | Sorting 12 in-memory documents is free compared with sorting the raw collection.                                                  |
+| `$project` | Renames `_id` → `month`, drops `_id`, keeps `totalRevenue` and `bookingCount`.                                                                                    | Purely cosmetic — shapes the API response. Client-facing cleanliness only.                                                        |
+
+#### The `$` prefix — dual meaning
+
+| Syntax             | Meaning             | Example                                                                                            |
+| ------------------ | ------------------- | -------------------------------------------------------------------------------------------------- |
+| `$match`, `$group` | **Stage name**      | The key of the stage object                                                                        |
+| `$sum`, `$month`   | **Operator**        | A function the pipeline knows how to evaluate                                                      |
+| `'$totalPrice'`    | **Field reference** | "Look up the field `totalPrice` on the current document"                                           |
+| `1`, `'completed'` | **Literal value**   | No `$` prefix → used as-is. `$sum: 1` means "add the literal number 1 per document" (i.e., count). |
+
+**Rule of thumb**: A `$` inside a quoted string refers to a field. Bare `$sum: 1` adds the literal `1`. Bare `$sum: '$totalPrice'` adds the field's value.
+
+#### Key mental distinctions
+
+- **`$group` is destructive.** After `$group`, the original fields (`customer`, `service`, `appointmentDate`, `status`) no longer exist on the document — only `_id` and whatever you produced with accumulators (`$sum`, `$avg`, `$push`, `$first`, …). If a downstream stage needs a field, you must carry it forward explicitly.
+- **Aggregation `$project` vs `.find()` projection.** `.find()` projection can only **include or exclude** existing fields. Aggregation `$project` can **rename** (`month: '$_id'`), **compute** (`total: { $multiply: ['$price', '$qty'] }`), and reshape arbitrarily. Forgetting `$project` here does not leak "all fields" — the document only has what `$group` produced. `$project` is for cleaning up the shape, not for hiding data.
+- **Index usage lives in `$match`.** The compound index from Phase 2.1 only helps if `$match` is the first stage and uses the left-prefix field (`appointmentDate`). Putting `$match` after `$group` throws the index away.
+
+#### Verification checklist before implementing
+
+1. Why must `$match` come first? → To use the index and shrink the document set before any expensive stage.
+2. What does `_id` mean inside `$group`? → The grouping key (e.g., month number 1–12). It is not a document identifier here.
+3. What is the difference between `$sum: 1` and `$sum: '$totalPrice'`? → `1` is a literal (add 1 per doc → count). `'$totalPrice'` is a field reference (add the field's value per doc → sum).
+4. Would forgetting `$project` leak all document fields to the client? → No. `$group` already dropped them. The client would just see the raw grouped shape `{ _id, totalRevenue, bookingCount }` instead of the renamed `{ month, totalRevenue, bookingCount }`.
+5. Why `$lt` on the year end, not `$lte`? → Half-open interval `[Jan 1, next Jan 1)` avoids time-of-day edge cases on the last day.
+
+#### Reference Implementation
+
 ```typescript
 async getMonthlyRevenue(year: number) {
   return this.bookingModel.aggregate([
@@ -1000,12 +1062,24 @@ async getAvgDurationByCustomerType() {
 }
 ```
 
+### Pipeline 1 — Lessons Learned (shipped)
+
+Bugs actually hit while writing the pipeline (keep these — they come back on every new pipeline):
+
+- **Structural**: every stage is its own object. `[{ $match: {...}, $group: {...} }]` is **one stage with two keys**, not two stages. MongoDB rejects it: _"A pipeline stage specification object must contain exactly one field."_ Correct: `[ { $match: {...} }, { $group: {...} } ]`.
+- **`$sort` widening in TS**: `const pipeline = [ { $sort: { _id: 1 } } ]` infers `1` as `number`, but Mongoose's `PipelineStage` type demands the literal `1 | -1 | Meta`. Fix: `const pipeline: PipelineStage[] = [...]` (import `PipelineStage` from `mongoose`). Bonus — every stage is now type-checked.
+- **`$project` default `_id` inclusion**: unlike other stages, `$project` keeps `_id` by default even when you're only listing other fields to include. Explicitly set `_id: 0` to drop it.
+- **Field reference vs literal**: `'_id'` is the literal string `"_id"`. `'$_id'` references the field's value. `month: '_id'` will output `{ month: "_id" }` — a silent data bug TypeScript cannot catch because `$project` is typed loosely.
+- **The `aggregate<T>` generic is a promise, not an inference**: `bookingModel.aggregate<MonthlyRevenue>([...])` tells the compiler what the pipeline will emit. Mongoose cannot read the pipeline array and verify it. If your `$project` stage doesn't actually emit `MonthlyRevenue`, the generic lies. Self-check: every field in the interface must appear in the final `$project`, with the right type, and no extras.
+- **Cross-module Mongoose models**: to use `Booking` inside `AnalyticsModule`, register it again with `MongooseModule.forFeature([{ name: Booking.name, schema: BookingSchema }])`. `forFeature` is per-module. Alternative: re-export `MongooseModule` from `BookingsModule`, but per-feature registration is the idiomatic default.
+- **Seed data via `.mongodb.js` playground**: deterministic `_id`s for seed docs let the playground be re-runnable (delete by `_id`). But the unique `email` index from Phase 2.1 also needs to be cleared — delete by `email` too, or the re-seed hits `E11000`.
+
 ### Checkpoint 2.2
 
-- [ ] You can explain what each stage in a pipeline does before running it.
-- [ ] The monthly revenue pipeline returns correct data (verify manually with a few test bookings).
-- [ ] You understand why `$unwind` is needed after `$lookup`.
-- [ ] You understand the difference between `$project` in the aggregation pipeline vs. Mongoose projection.
+- [x] You can explain what each stage in a pipeline does before running it.
+- [x] The monthly revenue pipeline returns correct data (verified with 12 seeded bookings — 10 completed across 2025, 2 non-completed filtered by `$match`).
+- [ ] You understand why `$unwind` is needed after `$lookup`. _(Pipeline 2)_
+- [ ] You understand the difference between `$project` in the aggregation pipeline vs. Mongoose projection. _(concept covered; will be reinforced in Pipelines 2 & 3)_
 
 ---
 

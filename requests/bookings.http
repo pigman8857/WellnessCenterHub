@@ -1,10 +1,10 @@
 @baseUrl = http://localhost:3000
 # After creating a customer, paste the returned _id here
-@customerId = 69cf770b7daee5c27fa74a36
+@customerId = 660000000000000000000001
 # After creating a service, paste the returned _id here
-@serviceId = 69ce0ca5fd13bbf757df72c5
+@serviceId = 650000000000000000000003
 # After creating a booking, paste the returned _id here
-@bookingId = 69d7c3b4028c340f02f48e7b
+@bookingId = 69e20ab2af43eb868144ba8c
 
 # ─── CREATE ────────────────────────────────────────────────────────────────────
 
