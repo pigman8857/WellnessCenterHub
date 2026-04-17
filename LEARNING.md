@@ -1293,6 +1293,186 @@ async getServicesWithRatings() {
 
 ---
 
+## Phase 2.6 — Seeding & Migrations: Managing Database State
+
+### Concept: Two Distinct Operations
+
+These two things are often confused but serve completely different purposes:
+
+|                  | Seeding                                  | Migration                                         |
+| ---------------- | ---------------------------------------- | ------------------------------------------------- |
+| **What**         | Insert test or initial data              | Change schema, indexes, or data shape             |
+| **When**         | Dev/test environments                    | All environments, applied in deployment order     |
+| **Tracked?**     | No                                       | Yes — a changelog collection records what has run |
+| **Rolled back?** | Delete the documents                     | `migrate-mongo down` runs the `down()` function   |
+| **Example**      | Insert 12 bookings for analytics testing | Add a compound index to `bookings`                |
+
+---
+
+### Seeding
+
+Seeding puts known documents into the database so you can develop and test against realistic, repeatable data. The analytics seed created in Phase 2.2 (`requests/analytics-seed.mongodb.js`) is a working example of the pattern.
+
+#### How to run a seed script
+
+```bash
+docker exec -i wellness_center_mongo mongosh --quiet wellness_center < requests/analytics-seed.mongodb.js
+```
+
+If mongosh is installed locally and MongoDB is accessible directly:
+
+```bash
+mongosh --quiet wellness_center < requests/analytics-seed.mongodb.js
+```
+
+`--quiet` suppresses the connection banner — only your `print()` output appears.
+
+#### Rules for re-runnable seed scripts
+
+A seed script must be safe to run multiple times without accumulating duplicates or hitting index errors.
+
+**Rule 1 — Use fixed ObjectId literals**, not `new ObjectId()`:
+
+```javascript
+const SVC_MASSAGE = ObjectId('650000000000000000000001');
+```
+
+Fixed literals let you delete exactly the seeded documents by `_id` before re-inserting. Random ObjectIds make re-running impossible without wiping the whole collection.
+
+**Rule 2 — Delete before inserting:**
+
+```javascript
+db.wellnessservices.deleteMany({ _id: { $in: [SVC_MASSAGE, SVC_HERBAL] } });
+```
+
+**Rule 3 — Also delete by unique-indexed fields:**
+
+If a document with the same unique field (e.g., `email`) exists under a _different_ `_id`, the `_id`-only delete misses it and the re-insert hits `E11000 duplicate key`. Use `$or` across both:
+
+```javascript
+db.customers.deleteMany({
+  $or: [{ _id: { $in: [CUST_ALICE] } }, { email: { $in: ['alice@example.com'] } }],
+});
+```
+
+**Rule 4 — Print a verification summary at the end:**
+
+```javascript
+print('services :', db.wellnessservices.countDocuments({ _id: { $in: [SVC_MASSAGE] } }));
+```
+
+This confirms insert counts without opening Compass.
+
+---
+
+### Migrations
+
+A migration is a versioned script that permanently transforms database state — adding indexes, renaming fields, backfilling data, or applying JSON Schema validators. Unlike seeds, migrations run in all environments (dev, staging, production) and are applied in strict order.
+
+#### The tool: `migrate-mongo`
+
+`migrate-mongo` is the standard migration library for MongoDB in Node.js. It tracks which migrations have already run in a `changelog` collection, so they are never applied twice.
+
+```bash
+npm install --save-dev migrate-mongo
+npx migrate-mongo init
+```
+
+Configure `migrate-mongo-config.js`:
+
+```javascript
+module.exports = {
+  mongodb: {
+    url: process.env.MONGODB_URI || 'mongodb://localhost:27017',
+    databaseName: 'wellness_center',
+  },
+  migrationsDir: 'migrations',
+  changelogCollectionName: 'changelog',
+};
+```
+
+#### Creating and writing a migration
+
+```bash
+npx migrate-mongo create add-index-booking-date-service
+```
+
+This generates `migrations/<timestamp>-add-index-booking-date-service.js`. Every migration has an `up` function (apply) and a `down` function (rollback):
+
+```javascript
+module.exports = {
+  async up(db) {
+    await db
+      .collection('bookings')
+      .createIndex({ appointmentDate: 1, service: 1 }, { background: true });
+  },
+  async down(db) {
+    await db.collection('bookings').dropIndex('appointmentDate_1_service_1');
+  },
+};
+```
+
+#### Common migration patterns
+
+**Backfill a new field on existing documents:**
+
+```javascript
+async up(db) {
+  await db.collection('customers').updateMany(
+    { customerType: { $exists: false } },
+    { $set: { customerType: 'local' } },
+  );
+}
+```
+
+**Apply MongoDB JSON Schema Validation (Phase 2.4 pattern):**
+
+```javascript
+async up(db) {
+  await db.command({
+    collMod: 'bookings',
+    validator: {
+      $jsonSchema: {
+        bsonType: 'object',
+        required: ['customer', 'service', 'status'],
+        properties: {
+          totalPrice: { bsonType: 'number', minimum: 0 },
+          status: {
+            bsonType: 'string',
+            enum: ['pending', 'confirmed', 'in-progress', 'completed', 'cancelled'],
+          },
+        },
+      },
+    },
+    validationLevel: 'strict',
+    validationAction: 'error',
+  });
+}
+async down(db) {
+  await db.command({ collMod: 'bookings', validationLevel: 'off' });
+}
+```
+
+#### Running migrations
+
+```bash
+npx migrate-mongo status   # show which migrations have run and which are pending
+npx migrate-mongo up       # apply all pending migrations
+npx migrate-mongo down     # roll back the most recent migration
+```
+
+In production, `migrate-mongo up` runs as part of the deployment pipeline before the application starts. This guarantees the database state matches the code before any requests are served.
+
+### Checkpoint 2.6
+
+- [ ] You can write a seed script that is safe to re-run (fixed ObjectIds, delete by `_id` AND unique fields, print summary).
+- [ ] You can run a seed script via `mongosh` from the command line.
+- [ ] You can explain the difference between seeding and migrating.
+- [ ] You have `migrate-mongo` installed and `migrate-mongo status` shows the changelog.
+- [ ] You can write a migration with a correct `up` and `down` function.
+
+---
+
 ## Phase 2 — Final Checkpoint
 
 - [ ] You can write an aggregation pipeline from memory using at least: `$match`, `$group`, `$lookup`, `$unwind`, `$project`.

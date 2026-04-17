@@ -39,6 +39,7 @@ The wellness center domain (Thai massage, herbal treatments, retreat bookings, t
 | 2.3       | Geospatial queries              | 🔲 Not started                                              |
 | 2.4       | MongoDB JSON Schema Validation  | 🔲 Not started                                              |
 | 2.5       | Review system (computed fields) | 🔲 Not started                                              |
+| 2.6       | Seeding & Migrations            | 🔲 Not started                                              |
 
 Full curriculum with concept explanations, code guidance, and phase checkpoints: **[LEARNING.md](LEARNING.md)**
 
