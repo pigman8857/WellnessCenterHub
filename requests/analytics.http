@@ -1,0 +1,38 @@
+@baseUrl = http://localhost:3000
+
+# ─── PIPELINE 1: MONTHLY REVENUE ──────────────────────────────────────────────
+
+### Monthly revenue — 2025 (seed data year)
+# MongoDB concept: $match → $group → $sort → $project pipeline
+# Expected: array of up to 12 objects { month, totalRevenue, bookingCount }
+#           only completed bookings counted; pending/cancelled excluded by $match
+GET {{baseUrl}}/analytics/monthly-revenue?year=2025
+
+### Monthly revenue — year with no data
+# Expected: empty array [] — $match filters everything out, $group has nothing to collapse
+GET {{baseUrl}}/analytics/monthly-revenue?year=2020
+
+### Monthly revenue — 400 missing year param
+# ParseIntPipe rejects missing query param
+# Expected: 400 Bad Request
+GET {{baseUrl}}/analytics/monthly-revenue
+
+### Monthly revenue — 400 non-integer year
+# ParseIntPipe rejects non-integer strings
+# Expected: 400 Bad Request
+GET {{baseUrl}}/analytics/monthly-revenue?year=abc
+
+# ─── PIPELINE 1: EXPLAIN (Phase 2.2 index verification) ───────────────────────
+
+### Explain monthly revenue — verify $match uses the compound index
+# MongoDB concept: only the first $match stage can use an index; all later stages run in memory
+# What to look for in the response:
+#   stages[0].$cursor.queryPlanner.winningPlan → "IXSCAN" (not "COLLSCAN")
+#   indexName → "appointmentDate_1_service_1"  (compound index from Phase 2.1)
+#   stages[0].$cursor.executionStats.totalKeysExamined > 0
+GET {{baseUrl}}/analytics/monthly-revenue/explain?year=2025
+
+### Explain — year with no matching documents
+# $match filters everything → IXSCAN still used but totalDocsExamined = 0
+# Expected: IXSCAN with nReturned = 0
+GET {{baseUrl}}/analytics/monthly-revenue/explain?year=2020

@@ -836,6 +836,18 @@ db.bookings
 
 Look for `"winningPlan"` → `"IXSCAN"` (index scan). If you see `"COLLSCAN"` (collection scan), your index is not being used.
 
+#### Verbosity Levels
+
+`explain()` accepts one of three verbosity strings:
+
+| Level | String                | What you get                                                             |
+| ----- | --------------------- | ------------------------------------------------------------------------ |
+| 1     | `"queryPlanner"`      | Which plan MongoDB _chose_ — no execution stats                          |
+| 2     | `"executionStats"`    | Chosen plan + actual docs examined, index used, time taken               |
+| 3     | `"allPlansExecution"` | All candidate plans + stats for each (useful for debugging slow queries) |
+
+Use `"executionStats"` as the default — it is the level that proves whether your index was actually used.
+
 ### Checkpoint 2.1 ✅ Complete
 
 - [x] You have a unique index on `Customer.email` — `unique: true` on `@Prop()` creates it implicitly; `index: true` alongside it is redundant.
@@ -1073,11 +1085,137 @@ Bugs actually hit while writing the pipeline (keep these — they come back on e
 - **The `aggregate<T>` generic is a promise, not an inference**: `bookingModel.aggregate<MonthlyRevenue>([...])` tells the compiler what the pipeline will emit. Mongoose cannot read the pipeline array and verify it. If your `$project` stage doesn't actually emit `MonthlyRevenue`, the generic lies. Self-check: every field in the interface must appear in the final `$project`, with the right type, and no extras.
 - **Cross-module Mongoose models**: to use `Booking` inside `AnalyticsModule`, register it again with `MongooseModule.forFeature([{ name: Booking.name, schema: BookingSchema }])`. `forFeature` is per-module. Alternative: re-export `MongooseModule` from `BookingsModule`, but per-feature registration is the idiomatic default.
 - **Seed data via `.mongodb.js` playground**: deterministic `_id`s for seed docs let the playground be re-runnable (delete by `_id`). But the unique `email` index from Phase 2.1 also needs to be cleared — delete by `email` too, or the re-seed hits `E11000`.
+- **`explain()` on aggregations — `{ explain: true }` is deprecated**: passing `{ explain: true }` as an option to `collection.aggregate()` is the old API and is flagged `@deprecated` by the driver. The correct modern API chains `.explain()` directly on the cursor returned by `collection.aggregate()`:
+
+  ```typescript
+  // ❌ Deprecated
+  this.bookingModel.collection.aggregate(pipeline, { explain: true });
+
+  // ✅ Correct
+  await this.bookingModel.collection.aggregate(pipeline).explain('executionStats');
+  ```
+
+  The same three verbosity levels apply (`"queryPlanner"`, `"executionStats"`, `"allPlansExecution"`). Only the **first `$match` stage** can use an index — all subsequent stages (`$group`, `$sort`, etc.) run in memory regardless.
+
+### Pipeline 1 — explain() Results & Analysis
+
+#### Test results summary
+
+| Request                                            | Result                       | Verdict |
+| -------------------------------------------------- | ---------------------------- | ------- |
+| `GET /analytics/monthly-revenue?year=2025`         | 7 months of revenue data     | ✅      |
+| `GET /analytics/monthly-revenue?year=2020`         | `[]`                         | ✅      |
+| `GET /analytics/monthly-revenue` (missing year)    | 400 Bad Request              | ✅      |
+| `GET /analytics/monthly-revenue?year=abc`          | 400 Bad Request              | ✅      |
+| `GET /analytics/monthly-revenue/explain?year=2025` | `IXSCAN` on compound index   | ✅      |
+| `GET /analytics/monthly-revenue/explain?year=2020` | `IXSCAN` with `nReturned: 0` | ✅      |
+
+---
+
+#### The `IXSCAN` → `FETCH` → `PROJECTION_SIMPLE` chain
+
+MongoDB executes the `$match` stage as a **nested pipeline of physical operations**, innermost first. Think of it like Russian dolls — the result of the inner stage feeds the outer one.
+
+```
+PROJECTION_SIMPLE          ← outermost: runs last
+    └── FETCH              ← middle
+            └── IXSCAN     ← innermost: runs first
+```
+
+**Stage 1 — `IXSCAN` (Index Scan)**
+
+MongoDB walks the `appointmentDate_1_service_1` index — a separate, sorted data structure on disk. It does **not touch the actual documents yet**. It only reads index entries (which contain `appointmentDate`, `service`, and a pointer to the document).
+
+Output: 12 pointers to documents within the 2025 date range.
+
+**Stage 2 — `FETCH`**
+
+MongoDB follows each pointer from `IXSCAN` to retrieve the **full document** from disk. This is where `status` is checked — because `status` is not in the index, the full document is needed to read it. 2 documents that were not `'completed'` are dropped here.
+
+Output: 10 documents.
+
+**Stage 3 — `PROJECTION_SIMPLE`**
+
+MongoDB strips each document down to only the fields the pipeline needs for `$group` — `appointmentDate` and `totalPrice`. Everything else is discarded before the aggregation stages run.
+
+Output: 10 lean `{ appointmentDate, totalPrice }` objects passed to `$group`.
+
+```
+Disk (index)
+    │  IXSCAN: walk index, find 12 pointers in the 2025 date range
+    ▼
+Disk (documents)
+    │  FETCH: load full doc, check status → drop 2 non-completed
+    ▼
+Memory
+    │  PROJECTION_SIMPLE: keep only appointmentDate + totalPrice
+    ▼
+$group → $sort → $project   (the stages you wrote)
+```
+
+**Key insight**: The index avoids reading documents you don't need. Without it, `FETCH` would load every booking in the entire collection before filtering.
+
+---
+
+#### Why `totalKeysExamined: 12` but `nReturned: 10`
+
+The compound index `(appointmentDate, service)` only knows about dates and service IDs — not `status`. So the index handed 12 documents to `FETCH`, and `FETCH` then checked `status === 'completed'` on the full documents, dropping 2.
+
+```
+Index: found 12 entries in the 2025 date range
+            ↓
+FETCH: load full doc, check status → 2 dropped (not "completed")
+            ↓
+10 documents passed to $group
+```
+
+**The root cause**: `status` is not in the index, so the index cannot filter by it. The 2-key gap (`12 examined` vs `10 returned`) is the cost of that missing field in the index.
+
+**The production fix**: a compound index that includes `status` — e.g. `{ status: 1, appointmentDate: 1 }` — or a partial index scoped to `status: 'completed'`. This is out of scope for Phase 2.2 but worth knowing.
+
+---
+
+#### Why `service` indexBounds shows `[MinKey, MaxKey]`
+
+The compound index is `{ appointmentDate: 1, service: 1 }`. Your `$match` only filters by `appointmentDate` — it does not filter by `service`. So:
+
+```
+appointmentDate bounds: [2025-01-01, 2026-01-01)   ← tight, from your $match
+service bounds:         [MinKey, MaxKey]             ← no filter → fully open
+```
+
+`MinKey` and `MaxKey` are MongoDB's way of saying "from the absolute minimum to the absolute maximum possible value" — i.e., accept any service. This is **not** a sign the index is broken. The `IXSCAN` still used the index to jump directly into the 2025 date range; `service` just adds no extra filtering.
+
+**The left-prefix rule in action**: The index can only constrain fields left to right without gaps. Once a field has no filter, all fields to its right open to `[MinKey, MaxKey]`.
+
+| Query                                  | `appointmentDate` bounds | `service` bounds   | Stage                  |
+| -------------------------------------- | ------------------------ | ------------------ | ---------------------- |
+| `$match: { appointmentDate }`          | tight range              | `[MinKey, MaxKey]` | `IXSCAN` ✅            |
+| `$match: { appointmentDate, service }` | tight range              | exact ObjectId     | `IXSCAN` ✅ (tightest) |
+| `$match: { service }` only             | `[MinKey, MaxKey]`       | ignored            | `COLLSCAN` ❌          |
+
+---
+
+#### The `year=2020` explain result
+
+`year=2020` has no seed data, yet the explain still shows `IXSCAN` with `totalKeysExamined: 0`. This is correct and expected:
+
+- MongoDB entered the index at the 2020 date range boundary.
+- It found zero entries in that range and exited immediately.
+- Zero documents were fetched from disk — the empty result was essentially free.
+
+This proves the index works even for empty ranges: MongoDB never touches the actual collection.
+
+---
 
 ### Checkpoint 2.2
 
 - [x] You can explain what each stage in a pipeline does before running it.
 - [x] The monthly revenue pipeline returns correct data (verified with 12 seeded bookings — 10 completed across 2025, 2 non-completed filtered by `$match`).
+- [x] `explain('executionStats')` verified `IXSCAN` on `appointmentDate_1_service_1` for the aggregation `$match` stage.
+- [x] You understand the `IXSCAN → FETCH → PROJECTION_SIMPLE` execution chain and what each physical stage does.
+- [x] You understand why `totalKeysExamined: 12` but `nReturned: 10` — `status` is not in the index so FETCH must filter it post-read.
+- [x] You understand why `service` shows `[MinKey, MaxKey]` — left-prefix rule, `service` has no filter so its bounds are fully open.
 - [ ] You understand why `$unwind` is needed after `$lookup`. _(Pipeline 2)_
 - [ ] You understand the difference between `$project` in the aggregation pipeline vs. Mongoose projection. _(concept covered; will be reinforced in Pipelines 2 & 3)_
 

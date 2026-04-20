@@ -3,12 +3,13 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Booking, BookingDocument } from '../bookings/schemas/booking.schema';
 import { Model, PipelineStage } from 'mongoose';
 import { MonthlyRevenue } from './types';
+import { Document } from 'mongodb';
 
 @Injectable()
 export class AnalyticService {
-  constructor(@InjectModel(Booking.name) private bookingModel: Model<BookingDocument>) {}
+  constructor(@InjectModel(Booking.name) private readonly bookingModel: Model<BookingDocument>) {}
 
-  async getMonthlyRevenue(year: number): Promise<MonthlyRevenue[]> {
+  private getPipelineMonthlyRevenue(year: number): PipelineStage[] {
     const pipeline: PipelineStage[] = [
       {
         $match: {
@@ -40,6 +41,16 @@ export class AnalyticService {
         },
       },
     ];
-    return this.bookingModel.aggregate<MonthlyRevenue>(pipeline);
+
+    return pipeline;
+  }
+  async getMonthlyRevenue(year: number): Promise<MonthlyRevenue[]> {
+    return await this.bookingModel.aggregate<MonthlyRevenue>(this.getPipelineMonthlyRevenue(year));
+  }
+
+  async getExplainMonthlyRevenue(year: number): Promise<Document> {
+    return await this.bookingModel.collection
+      .aggregate(this.getPipelineMonthlyRevenue(year))
+      .explain('executionStats');
   }
 }
