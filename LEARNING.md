@@ -995,6 +995,85 @@ async getMonthlyRevenue(year: number) {
 
 ### Pipeline 2: Top 3 Most Popular Services
 
+#### Concept Walkthrough
+
+**Business question**: _Which 3 services have the most confirmed or completed bookings?_
+
+**New stages introduced**: `$lookup`, `$unwind`, `$limit`.
+
+**The funnel**:
+
+```
+bookings collection
+        │
+     $match          ← keep only confirmed + completed bookings
+        ▼
+     $group          ← collapse into one doc per service ObjectId, count bookings
+        ▼
+     $sort           ← rank by bookingCount descending
+        ▼
+     $limit          ← keep top 3 only — critical placement (see below)
+        ▼
+     $lookup         ← join wellnessservices to get name + category (3 joins, not 50+)
+        ▼
+     $unwind         ← flatten the array $lookup produces
+        ▼
+     $project        ← shape the output: serviceName, category, bookingCount
+        ▼
+      result
+```
+
+**Why `$lookup` produces an array — and why `$unwind` is always needed after it**
+
+`$lookup` is modelled as a one-to-many join. Even when you know the relationship is one-to-one (one service document per ObjectId), MongoDB does not assume that — it always puts the joined documents into an **array** field:
+
+```
+After $lookup:
+{ _id: ObjectId('650...001'), bookingCount: 5, serviceDetails: [{ name: 'Thai Massage', ... }] }
+                                                                 ↑ always an array
+```
+
+`$unwind` then flattens that array — it replaces the array with the single element so downstream stages can access fields directly:
+
+```
+After $unwind:
+{ _id: ObjectId('650...001'), bookingCount: 5, serviceDetails: { name: 'Thai Massage', ... } }
+                                                                ↑ now a plain object
+```
+
+Without `$unwind`, `'$serviceDetails.name'` in `$project` would return `null` because you cannot dot-navigate into an array that way.
+
+**Why `$limit` must come before `$lookup`**
+
+`$lookup` runs one join query per document in the pipeline at that point. If you place `$limit` after `$lookup`:
+
+```
+// ❌ Expensive
+$group → $sort → $lookup (joins ALL unique services) → $limit (discards most of them)
+```
+
+If you place `$limit` before `$lookup`:
+
+```
+// ✅ Correct
+$group → $sort → $limit (keep top 3) → $lookup (joins only 3 ObjectIds)
+```
+
+The rule: **reduce the document count as early as possible before any expensive stage** (`$lookup`, `$group`). This is the same principle as putting `$match` first to use the index.
+
+**`$lookup` fields explained**
+
+```typescript
+$lookup: {
+  from: 'wellnessservices',  // the MongoDB collection name to join (lowercase plural — not the class name)
+  localField: '_id',         // field on the current document (the grouped service ObjectId)
+  foreignField: '_id',       // field on the joined collection to match against
+  as: 'serviceDetails',      // name of the array field added to the output document
+}
+```
+
+> **`from` is the raw MongoDB collection name**, not the Mongoose model name. MongoDB stores `WellnessService` documents in `wellnessservices` (lowercase, pluralised automatically). If you write `from: 'WellnessService'` it will silently return an empty array — no error.
+
 ```typescript
 async getTopServices(limit = 3) {
   return this.bookingModel.aggregate([
