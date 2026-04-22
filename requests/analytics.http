@@ -36,3 +36,14 @@ GET {{baseUrl}}/analytics/monthly-revenue/explain?year=2025
 # $match filters everything → IXSCAN still used but totalDocsExamined = 0
 # Expected: IXSCAN with nReturned = 0
 GET {{baseUrl}}/analytics/monthly-revenue/explain?year=2020
+
+# ─── PIPELINE 2: TOP 3 SERVICES (Day 1 — $lookup raw output) ──────────────────
+
+### Top 3 most popular services
+# MongoDB concept: $match → $group → $sort → $limit → $lookup
+# Expected: array of 3 objects, each with:
+#   _id: ObjectId (the service reference)
+#   bookingCount: number
+#   serviceDetails: [ { name, category, ... } ]  ← array from $lookup (Day 1: not yet unwound)
+# If serviceDetails is [] → 'from' collection name is wrong
+GET {{baseUrl}}/analytics/top-services

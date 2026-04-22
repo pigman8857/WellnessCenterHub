@@ -1189,6 +1189,22 @@ Bugs actually hit while writing the pipeline (keep these — they come back on e
 | `GET /analytics/monthly-revenue/explain?year=2025` | `IXSCAN` on compound index   | ✅      |
 | `GET /analytics/monthly-revenue/explain?year=2020` | `IXSCAN` with `nReturned: 0` | ✅      |
 
+#### Actual API response — `GET /analytics/monthly-revenue?year=2025`
+
+```json
+[
+  { "totalRevenue": 1500, "bookingCount": 1, "month": 1 },
+  { "totalRevenue": 2300, "bookingCount": 2, "month": 2 },
+  { "totalRevenue": 1850, "bookingCount": 2, "month": 3 },
+  { "totalRevenue": 2300, "bookingCount": 2, "month": 4 },
+  { "totalRevenue": 350, "bookingCount": 1, "month": 6 },
+  { "totalRevenue": 1500, "bookingCount": 1, "month": 7 },
+  { "totalRevenue": 800, "bookingCount": 1, "month": 8 }
+]
+```
+
+> 7 months returned (months 5, 9–12 have no completed bookings in seed data). Total: 10 completed bookings, 10,600 THB revenue across 2025. Months 1–4 and 6–8 only — matches the seed script.
+
 ---
 
 #### The `IXSCAN` → `FETCH` → `PROJECTION_SIMPLE` chain
@@ -1284,6 +1300,78 @@ service bounds:         [MinKey, MaxKey]             ← no filter → fully ope
 - Zero documents were fetched from disk — the empty result was essentially free.
 
 This proves the index works even for empty ranges: MongoDB never touches the actual collection.
+
+---
+
+### Pipeline 2 — Day 1 Results (`$lookup` raw output)
+
+**Date**: 2026-04-22 | **Endpoint**: `GET /analytics/top-services`
+
+#### Actual API response
+
+```json
+[
+  {
+    "_id": "650000000000000000000001",
+    "bookingCount": 5,
+    "serviceDetails": [
+      {
+        "_id": "650000000000000000000001",
+        "name": "Thai Massage",
+        "durationMinutes": 60,
+        "price": 1500,
+        "category": "massage",
+        "isActive": true,
+        "createdAt": "2026-04-17T10:25:53.917Z",
+        "updatedAt": "2026-04-17T10:25:53.917Z"
+      }
+    ]
+  },
+  {
+    "_id": "650000000000000000000002",
+    "bookingCount": 3,
+    "serviceDetails": [
+      {
+        "_id": "650000000000000000000002",
+        "name": "Herbal Steam Bath",
+        "durationMinutes": 45,
+        "price": 800,
+        "category": "herbal",
+        "isActive": true,
+        "createdAt": "2026-04-17T10:25:53.917Z",
+        "updatedAt": "2026-04-17T10:25:53.917Z"
+      }
+    ]
+  },
+  {
+    "_id": "650000000000000000000003",
+    "bookingCount": 2,
+    "serviceDetails": [
+      {
+        "_id": "650000000000000000000003",
+        "name": "Morning Meditation",
+        "durationMinutes": 45,
+        "price": 350,
+        "category": "meditation",
+        "isActive": true,
+        "createdAt": "2026-04-17T10:25:53.917Z",
+        "updatedAt": "2026-04-17T10:25:53.917Z"
+      }
+    ]
+  }
+]
+```
+
+#### Analysis
+
+| Observation                                                                  | Explanation                                                                                                                                           |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `serviceDetails` is an array with one element                                | `$lookup` always produces an array — even for a one-to-one join. This is the problem `$unwind` solves.                                                |
+| Ranking is Thai Massage (5) → Herbal Steam Bath (3) → Morning Meditation (2) | `$sort: { bookingCount: -1 }` + `$limit: 3` working correctly                                                                                         |
+| `_id` on each result is the service ObjectId                                 | After `$group: { _id: '$service' }`, the grouped doc's `_id` IS the service reference — this is what `localField: '_id'` matches against in `$lookup` |
+| Full service document is inside `serviceDetails`                             | No `$project` yet — `$lookup` brings the entire joined document. Day 2 will trim this to just `name` and `category`.                                  |
+
+**Key observation to remember**: `'$serviceDetails.name'` in `$project` would return `null` right now because `serviceDetails` is an array. Dot-navigation does not work into arrays. That is exactly what `$unwind` fixes tomorrow.
 
 ---
 

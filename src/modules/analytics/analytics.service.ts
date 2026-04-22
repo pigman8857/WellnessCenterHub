@@ -44,6 +44,41 @@ export class AnalyticService {
 
     return pipeline;
   }
+
+  private getPipelineTopService(): PipelineStage[] {
+    const pipeline: PipelineStage[] = [
+      {
+        $match: {
+          status: { $in: ['confirmed', 'completed'] },
+        },
+      },
+      {
+        $group: {
+          _id: '$service',
+          bookingCount: { $sum: 1 },
+        },
+      },
+      {
+        $sort: {
+          bookingCount: -1,
+        },
+      },
+      {
+        $limit: 3,
+      },
+      {
+        $lookup: {
+          from: 'wellnessservices', // raw MongoDB collection name — lowercase plural, NOT the class name
+          localField: '_id', // the grouped doc's _id IS the service ObjectId (from $group _id: '$service')
+          foreignField: '_id', // match against _id on the wellnessservices side
+          as: 'serviceDetails', // name of the array field added to the output
+        },
+      },
+    ];
+
+    return pipeline;
+  }
+
   async getMonthlyRevenue(year: number): Promise<MonthlyRevenue[]> {
     return await this.bookingModel.aggregate<MonthlyRevenue>(this.getPipelineMonthlyRevenue(year));
   }
@@ -52,5 +87,9 @@ export class AnalyticService {
     return await this.bookingModel.collection
       .aggregate(this.getPipelineMonthlyRevenue(year))
       .explain('executionStats');
+  }
+
+  async getTopService(): Promise<any[]> {
+    return await this.bookingModel.aggregate<any>(this.getPipelineTopService());
   }
 }

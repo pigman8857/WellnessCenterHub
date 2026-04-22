@@ -20,4 +20,9 @@ export class AnalyticsController {
   ): Promise<Document> {
     return await this.analyticService.getExplainMonthlyRevenue(year);
   }
+
+  @Get('top-services')
+  async getTopService(): Promise<any[]> {
+    return await this.analyticService.getTopService();
+  }
 }
